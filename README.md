@@ -1,37 +1,28 @@
-## Welcome to GitHub Pages
+## SCORE! From video to audio through deep latent representations 
 
-You can use the [editor on GitHub](https://github.com/pbloem/score/edit/master/README.md) to maintain and preview the content for your website in Markdown files.
+SCORE is a cooperation between the VU University Amsterdam and the national institute Sound and Vision. Its aim is to 
+use simple unsupervised analysis of audio and video, to create meaningful mappings between the two, through latent-space 
+representations. 
 
-Whenever you commit to this repository, GitHub Pages will run [Jekyll](https://jekyllrb.com/) to rebuild the pages in your site, from the content in your Markdown files.
+SCORE! focuses on using these mappings as a creative tool: for instance to automaticvally generate a soundtrack to a 
+piece of video. However, the methods we use have much broader applicability, for instance in information retrieval, 
+e-humanities or general multimedia manipulation.         
 
-### Markdown
+### People
 
-Markdown is a lightweight and easy-to-use syntax for styling your writing. It includes conventions for
+* [Peter Bloem](peterbloem.nl) (VU University)
+* Gregory Markus (Sound and vision)
+* [Victor de Boer](victordeboer.nl) (VU University)
 
-```markdown
-Syntax highlighted code block
+### Related projects
 
-# Header 1
-## Header 2
-### Header 3
+The ***[MIDI-LD cloud](https://midi-ld.github.io/)*** is a vast archive of MIDI music, annotated and interlinked using Linked Data standards. We will 
+aim to use this as our archive for the audio part of the project.
 
-- Bulleted
-- List
+### Updates
 
-1. Numbered
-2. List
+#### 19 April 2018
 
-**Bold** and _Italic_ and `Code` text
+SCORE! now has a webpage. We are currently investigating the use of Variational Autoencoders for MIDI music, through 
+several MSc student projects  
 
-[Link](url) and ![Image](src)
-```
-
-For more details see [GitHub Flavored Markdown](https://guides.github.com/features/mastering-markdown/).
-
-### Jekyll Themes
-
-Your Pages site will use the layout and styles from the Jekyll theme you have selected in your [repository settings](https://github.com/pbloem/score/settings). The name of this theme is saved in the Jekyll `_config.yml` configuration file.
-
-### Support or Contact
-
-Having trouble with Pages? Check out our [documentation](https://help.github.com/categories/github-pages-basics/) or [contact support](https://github.com/contact) and we’ll help you sort it out.
