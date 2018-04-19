@@ -16,13 +16,14 @@ e-humanities or general multimedia manipulation.
 
 ### Related projects
 
-The ***[MIDI-LD cloud](https://midi-ld.github.io/)*** is a vast archive of MIDI music, annotated and interlinked using Linked Data standards. We will 
-aim to use this as our archive for the audio part of the project.
+The ***[MIDI-LD cloud](https://midi-ld.github.io/)*** is a vast archive of MIDI music, annotated and interlinked using 
+Linked Data standards. We will aim to use this as our archive for the audio part of the project.
 
 ### Updates
 
 #### 19 April 2018
 
 SCORE! now has a webpage. We are currently investigating the use of Variational Autoencoders for MIDI music, through 
-several MSc student projects  
+several MSc student projects. We are also investigating the use of VAEs for the visual part of the project, starting 
+with the Sound and Vision archive. More updates soon.
 
