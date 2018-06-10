@@ -111,6 +111,9 @@ def go(options):
     # decoder = Model(zsample, output)
     auto = Model(input, output)
 
+    if options.num_gpu is not None:
+        auto = multi_gpu_model(auto, gpus=options.num_gpu)
+
     opt = keras.optimizers.Adam(lr=options.lr)
     auto.compile(optimizer=opt, loss='binary_crossentropy')
 
@@ -206,6 +209,11 @@ if __name__ == "__main__":
                         dest="seed",
                         help="RNG seed. Negative for random. Chosen seed will be printed to sysout",
                         default=1, type=int)
+
+    parser.add_argument("-g", "--num-gpu",
+                        dest="num_gpu",
+                        help="How many GPUs to use",
+                        default=None, type=int)
 
     options = parser.parse_args()
 
