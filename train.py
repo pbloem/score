@@ -120,7 +120,7 @@ def go(options):
     ## Training loop
 
     #- data urls
-    df = pd.read_csv('openbeelden.csv', header=None)
+    df = pd.read_csv(options.video_urls, header=None)
 
     for _ in tqdm.trange(options.num_videos):
         #- download videos. One for each instance in the batch.
@@ -204,6 +204,12 @@ if __name__ == "__main__":
                         dest="tb_dir",
                         help="Tensorboard directory",
                         default='./runs/lm', type=str)
+
+
+    parser.add_argument("-v", "--video-urls",
+                        dest="video_urls",
+                        help="CSV file with the video metadata",
+                        default='./openbeelden.csv', type=str)
 
     parser.add_argument("-r", "--random-seed",
                         dest="seed",
