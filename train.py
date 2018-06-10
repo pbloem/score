@@ -157,8 +157,6 @@ def go(options):
 
             losses = auto.train_on_batch(batch, batch)
 
-            print(type(losses), losses)
-
             instances_seen += batch.shape[0]
             tbw.add_scalar('score/batch-loss', float(losses), instances_seen)
 
