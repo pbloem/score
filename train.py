@@ -148,12 +148,13 @@ def go(options):
             for i, cap in enumerate(caps):
                 if cap.isOpened():
                     ret, frame = cap.read()
-                    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                    if(ret):
+                        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
-                    newsize = (WIDTH, HEIGHT)
-                    frame = cv2.resize(frame, newsize)
-                    batch[i, ...] = frame
-                    finished = False
+                        newsize = (WIDTH, HEIGHT)
+                        frame = cv2.resize(frame, newsize)
+                        batch[i, ...] = frame
+                        finished = False
 
             losses = auto.train_on_batch(batch, batch)
 
