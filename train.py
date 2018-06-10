@@ -155,10 +155,12 @@ def go(options):
                     batch[i, ...] = frame
                     finished = False
 
-            loss = auto.train_on_batch(batch, batch)
+            losses = auto.train_on_batch(batch, batch)
+
+            print(type(losses), losses)
 
             instances_seen += batch.shape[0]
-            tbw.add_scalar('score/batch-loss', loss, instances_seen)
+            tbw.add_scalar('score/batch-loss', float(losses), instances_seen)
 
             if finished:
                 break
