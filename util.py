@@ -48,7 +48,7 @@ class KLLayer(Layer):
     http://tiao.io/posts/implementing-variational-autoencoders-in-keras-beyond-the-quickstart-tutorial/
     """
 
-    def __init__(self, weight = K.variable(1.0), *args, **kwargs):
+    def __init__(self, weight = K.constant(1.0), *args, **kwargs):
         self.is_placeholder = True
         self.weight = weight
         super().__init__(*args, **kwargs)
@@ -61,7 +61,7 @@ class KLLayer(Layer):
                                 K.square(mu) -
                                 K.exp(log_var), axis=-1)
 
-        self.add_loss(K.mean(kl_batch), inputs=inputs)
+        self.add_loss(self.weight * kl_batch)
 
         return inputs
 

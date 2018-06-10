@@ -19,6 +19,7 @@ from keras.layers import Input, Conv2D, Conv2DTranspose, Dense, Reshape, MaxPool
 from keras.models import Model, Sequential
 from keras.engine.topology import Layer
 from keras.utils import to_categorical
+from keras import metrics
 import keras.optimizers
 from tensorflow.python.client import device_lib
 import keras.backend as K
@@ -115,7 +116,8 @@ def go(options):
         auto = multi_gpu_model(auto, gpus=options.num_gpu)
 
     opt = keras.optimizers.Adam(lr=options.lr)
-    auto.compile(optimizer=opt, loss='binary_crossentropy')
+    auto.compile(optimizer=opt,
+                 loss='binary_crossentropy')
 
     ## Training loop
 
@@ -156,10 +158,12 @@ def go(options):
                         batch[i, ...] = frame
                         finished = False
 
-            losses = auto.train_on_batch(batch, batch)
+            l = auto.train_on_batch(batch, batch)
 
             instances_seen += batch.shape[0]
-            tbw.add_scalar('score/batch-loss', float(losses), instances_seen)
+            tbw.add_scalar('score/l1', float(l[0]), instances_seen)
+            tbw.add_scalar('score/l2', float(l[1]), instances_seen)
+            tbw.add_scalar('score/total', float(l[0] + l[1]), instances_seen)
 
             if finished:
                 break
@@ -189,7 +193,7 @@ if __name__ == "__main__":
     parser.add_argument("-l", "--learn-rate",
                         dest="lr",
                         help="Learning rate",
-                        default=0.00001, type=float)
+                        default=0.000001, type=float)
 
     parser.add_argument("-b", "--batch-size",
                         dest="batch_size",
