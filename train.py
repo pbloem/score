@@ -132,6 +132,9 @@ def go(options):
         caps = [] # video capture objects
         files = []
 
+        if options.model_file is not None:
+            auto.save(options.model_file)
+
         print('downloading video batch.')
         for url in df.iloc[rand_indices, 2]:
             file = wget.download(url, out=options.data_dir)
@@ -210,6 +213,10 @@ if __name__ == "__main__":
                         help="Tensorboard directory",
                         default='./runs/lm', type=str)
 
+    parser.add_argument("-M", "--model-file",
+                        dest="model_file",
+                        help="Where to save the model (if None, the model will not be saved). The model will be overwritten every video batch.",
+                        default=None, type=str)
 
     parser.add_argument("-V", "--video-urls",
                         dest="video_urls",
