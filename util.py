@@ -136,5 +136,7 @@ def plot(latents, images, size=0.00001, filename='latent_space.pdf'):
 
         ax.imshow(im, extent=(x, x + size, y, y + size*aspect))
 
+    ax.scatter(latents[:, 0], latents[:, 1])
+
     plt.savefig(filename)
     plt.close(fig)

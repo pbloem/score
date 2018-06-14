@@ -195,7 +195,8 @@ def go(options):
             print('L', latents[:10,:])
             print('range', rng)
 
-            util.plot(latents, images, size=rng/math.sqrt(latents.shape[0]))
+            n = latents.shape[0]
+            util.plot(latents, images, size=rng/n)
 
 
 if __name__ == "__main__":
