@@ -174,7 +174,7 @@ def go(options):
             tbw.add_scalar('score/l2', float(l[1]), instances_seen)
             tbw.add_scalar('score/total', float(l[0] + l[1]), instances_seen)
 
-            if finished or instances_seen > 1:
+            if finished:
                 break
 
         for cap in caps:
