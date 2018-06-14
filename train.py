@@ -39,6 +39,13 @@ import util
 
 WIDTH, HEIGHT = 320, 256
 
+
+def anneal(step, total, k=1.0, anneal_function='logistic'):
+    if anneal_function == 'logistic':
+        return float(1 / (1 + np.exp(-k * (step - total / 2))))
+    elif anneal_function == 'linear':
+        return min(1, step / total)
+
 def go(options):
 
     ## Admin
@@ -85,7 +92,8 @@ def go(options):
     zmean = Dense(options.latent_size)(h)
     zlsig = Dense(options.latent_size)(h)
 
-    [zmean, zlsig] = util.KLLayer()([zmean, zlsig])
+    kl = util.KLLayer()
+    [zmean, zlsig] = kl([zmean, zlsig])
     zsample = util.Sample()([zmean, zlsig])
 
     h = Dense(5 * 4 * 128, activation='relu')(zsample)
@@ -127,7 +135,11 @@ def go(options):
     # Test images to plot
     images = np.load(options.sample_file)['images']
 
-    for _ in tqdm.trange(options.num_videos):
+    for ep in tqdm.trange(options.num_videos):
+
+        print('Set KL weight to ', anneal(ep, options.num_videos))
+        K.set_value(kl.weight, anneal(ep, options.num_videos))
+
         #- download videos. One for each instance in the batch.
         l = len(df)
         rand_indices = random.sample(range(l), options.batch_size)
