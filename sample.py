@@ -67,7 +67,7 @@ def go(options):
         cap.release()
         os.remove(file)
 
-    np.save('sample.npy', result)
+    np.savez_compressed('sample.npy', images=result)
 
 if __name__ == "__main__":
 
