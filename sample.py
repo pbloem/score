@@ -42,6 +42,7 @@ def go(options):
     for url in tqdm.tqdm(urls):
         #- download videos. One for each instance in the batch.
 
+        print('Downloading video', url)
         file = wget.download(url, out=options.data_dir)
 
         cap = cv2.VideoCapture(file)

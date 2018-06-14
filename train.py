@@ -137,7 +137,10 @@ def go(options):
 
         print('downloading video batch.')
         for url in df.iloc[rand_indices, 2]:
-            file = wget.download(url, out=options.data_dir)
+            try:
+                file = wget.download(url, out=options.data_dir)
+            except:
+                raise Exception('Download failed for file', url)
             caps.append(cv2.VideoCapture(file))
             files.append(file)
         print('done.')
@@ -168,7 +171,7 @@ def go(options):
             tbw.add_scalar('score/l2', float(l[1]), instances_seen)
             tbw.add_scalar('score/total', float(l[0] + l[1]), instances_seen)
 
-            if finished:
+            if finished or instances_seen > 1:
                 break
 
         for cap in caps:
@@ -176,6 +179,20 @@ def go(options):
 
         for file in files:
             os.remove(file)
+
+
+        ## Plot the latent space
+        if options.sample_file is not None:
+            images = np.load(options.sample_file)
+
+            latents = encoder.predict(images)[0]
+
+            rng = np.max(latents[:, 0]) - np.min(latents[:, 0])
+
+            print('L', latents[:10,:])
+            print('range', rng)
+
+            util.plot(latents, images, size=rng/10)
 
 
 if __name__ == "__main__":
@@ -188,7 +205,7 @@ if __name__ == "__main__":
                         help="Number of of video batches.",
                         default=150, type=int)
 
-    parser.add_argument("-L", "--embedding-size",
+    parser.add_argument("-L", "--latent-size",
                         dest="latent_size",
                         help="Size of the latent representation",
                         default=256, type=int)
@@ -196,7 +213,7 @@ if __name__ == "__main__":
     parser.add_argument("-l", "--learn-rate",
                         dest="lr",
                         help="Learning rate",
-                        default=0.000001, type=float)
+                        default=0.0001, type=float)
 
     parser.add_argument("-b", "--batch-size",
                         dest="batch_size",
@@ -222,6 +239,12 @@ if __name__ == "__main__":
                         dest="video_urls",
                         help="CSV file with the video metadata",
                         default='./openbeelden.csv', type=str)
+
+    parser.add_argument("-S", "--sample-file",
+                        dest="sample_file",
+                        help="Saved numpy array with random frames",
+                        default=None, type=str)
+
 
     parser.add_argument("-r", "--random-seed",
                         dest="seed",

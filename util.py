@@ -14,6 +14,10 @@ import os, sys
 import datetime, pathlib
 from keras.preprocessing import sequence
 
+import matplotlib as mpl
+mpl.use('Agg')
+import matplotlib.pyplot as plt
+
 import cv2
 
 def to_categorical(batch, num_classes):
@@ -113,3 +117,24 @@ def loadmovie(file):
 
 def ensure(dir):
     pathlib.Path(dir).mkdir(parents=True, exist_ok=True)
+
+def plot(latents, images, size=0.00001, filename='latent_space.pdf'):
+
+    assert(latents.shape[0] == images.shape[0])
+
+    n, h, w, _ = images.shape
+
+    aspect = h/w
+
+    fig = plt.figure(figsize=(16,16))
+    ax = fig.add_subplot(111)
+
+    for i in range(n):
+        x, y = latents[i, 0:2]
+
+        im = images[i, :]
+
+        ax.imshow(im, extent=(x, x + size, y, y + size*aspect))
+
+    plt.savefig(filename)
+    plt.close(fig)
