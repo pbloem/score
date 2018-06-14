@@ -124,6 +124,9 @@ def go(options):
     #- data urls
     df = pd.read_csv(options.video_urls, header=None)
 
+    # Test images to plot
+    images = np.load(options.sample_file)
+
     for _ in tqdm.trange(options.num_videos):
         #- download videos. One for each instance in the batch.
         l = len(df)
@@ -171,7 +174,7 @@ def go(options):
             tbw.add_scalar('score/l2', float(l[1]), instances_seen)
             tbw.add_scalar('score/total', float(l[0] + l[1]), instances_seen)
 
-            if finished or instances_seen > 1:
+            if finished:
                 break
 
         for cap in caps:
@@ -181,18 +184,20 @@ def go(options):
             os.remove(file)
 
 
+
         ## Plot the latent space
         if options.sample_file is not None:
-            images = np.load(options.sample_file)
+            print('Plotting latent space.')
 
             latents = encoder.predict(images)[0]
+            print('Computed latent vectors.')
 
             rng = np.max(latents[:, 0]) - np.min(latents[:, 0])
 
             print('L', latents[:10,:])
             print('range', rng)
 
-            util.plot(latents, images, size=rng/10)
+            util.plot(latents, images, size=rng/50)
 
 
 if __name__ == "__main__":

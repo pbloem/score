@@ -82,7 +82,7 @@ if __name__ == "__main__":
     parser.add_argument("-f", "--frames",
                         dest="num_frames",
                         help="Number of frames to extract per video",
-                        default=1, type=int)
+                        default=10, type=int)
 
     parser.add_argument("-W", "--width",
                         dest="width",
