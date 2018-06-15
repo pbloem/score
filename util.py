@@ -17,6 +17,8 @@ from keras.preprocessing import sequence
 import matplotlib as mpl
 mpl.use('Agg')
 import matplotlib.pyplot as plt
+from matplotlib import cm
+
 
 import cv2
 
@@ -118,15 +120,15 @@ def loadmovie(file):
 def ensure(dir):
     pathlib.Path(dir).mkdir(parents=True, exist_ok=True)
 
-def plot(latents, images, size=0.00001, filename='latent_space.pdf'):
+def plot(latents, images, size=0.00001, filename='latent_space.pdf', invert=False):
 
     assert(latents.shape[0] == images.shape[0])
 
-    n, h, w, _ = images.shape
+    n, h, w, c = images.shape
 
     aspect = h/w
 
-    fig = plt.figure(figsize=(16,16))
+    fig = plt.figure(figsize=(64,64))
     ax = fig.add_subplot(111)
 
     for i in range(n):
@@ -134,9 +136,9 @@ def plot(latents, images, size=0.00001, filename='latent_space.pdf'):
 
         im = images[i, :]
 
-        ax.imshow(im, extent=(x, x + size, y, y + size*aspect))
+        ax.imshow(im if c > 1 else im.squeeze(2), extent=(x, x + size, y, y + size*aspect), cmap='gray_r' if invert else 'gray')
 
-    ax.scatter(latents[:, 0], latents[:, 1])
+    ax.scatter(latents[:, 0], latents[:, 1], alpha=0.01, linewidth=0)
 
     plt.savefig(filename)
     plt.close(fig)
