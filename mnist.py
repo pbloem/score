@@ -35,8 +35,6 @@ def go(options):
     x_train = x_train[..., None]/255.0
     x_test  = x_test[..., None]/255.0
 
-    print(np.max(x_train))
-
     n = x_train.shape[0]
 
     ### Build model
@@ -116,8 +114,8 @@ def go(options):
             l = auto.train_on_batch([batch, eps], batch)
 
             instances_seen += batch.shape[0]
-            for li in l:
-                tbw.add_scalar('score/l-{:02}'.format(li), float(li), instances_seen)
+            for i, li in enumerate(l):
+                tbw.add_scalar('score/l-{:02}'.format(i), float(li), instances_seen)
             tbw.add_scalar('score/sum', np.sum(l), instances_seen)
 
         ## Plot the latent space
