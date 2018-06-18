@@ -116,7 +116,7 @@ def go(options):
             instances_seen += batch.shape[0]
             # tbw.add_scalar('score/l1', float(l[0]), instances_seen)
             # tbw.add_scalar('score/l2', float(l[1]), instances_seen)
-            tbw.add_scalar('score/loss', float(l[0]), instances_seen)
+            tbw.add_scalar('score/loss', float(l), instances_seen)
 
         ## Plot the latent space
         print('Plotting latent space.')
