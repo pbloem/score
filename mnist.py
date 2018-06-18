@@ -65,8 +65,8 @@ def go(options):
     zmean = Dense(options.latent_size)(h)
     zlsig = Dense(options.latent_size)(h)
 
-    kl = util.KLLayer()
-    [zmean, zlsig] = kl([zmean, zlsig])
+    #  kl = util.KLLayer()
+    # [zmean, zlsig] = kl([zmean, zlsig])
     zsample = util.Sample()([zmean, zlsig, eps])
 
     h = Dense(4 * 4 * c, activation='relu')(zsample)
