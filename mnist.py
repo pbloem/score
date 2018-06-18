@@ -41,6 +41,7 @@ def go(options):
     ## Build the model
 
     input = Input(shape=(28, 28, 1))
+    eps = Input(shape=(options.latent_size, ))
 
     a, b, c = 8, 32, 128
 
@@ -66,7 +67,7 @@ def go(options):
 
     kl = util.KLLayer()
     [zmean, zlsig] = kl([zmean, zlsig])
-    zsample = util.Sample()([zmean, zlsig])
+    zsample = util.Sample()([zmean, zlsig, eps])
 
     h = Dense(4 * 4 * c, activation='relu')(zsample)
     #  h = Dense(HEIGHT//(4*4*4) * WIDTH//(4*4*4) * 128, activation='relu')(zsample)
@@ -89,7 +90,7 @@ def go(options):
 
     encoder = Model(input, [zmean, zlsig])
     # decoder = Model(zsample, output)
-    auto = Model(input, output)
+    auto = Model([input, eps], output)
 
     opt = keras.optimizers.Adam(lr=options.lr)
     auto.compile(optimizer=opt,
@@ -107,8 +108,10 @@ def go(options):
                 to = n
 
             batch = x_train[fr:to, ...]
+            bn = batch.shape[0]
+            eps = np.random.randn(bn, options.latent_size)
 
-            l = auto.train_on_batch(batch, batch)
+            l = auto.train_on_batch([batch, eps], batch)
 
             instances_seen += batch.shape[0]
             tbw.add_scalar('score/l1', float(l[0]), instances_seen)

@@ -83,7 +83,7 @@ class Sample(Layer):
 
     def call(self, inputs):
 
-        mu, log_var = inputs
+        mu, log_var, eps = inputs
 
         eps = Input(tensor=K.random_normal(shape=K.shape(mu) ))
 
@@ -92,7 +92,7 @@ class Sample(Layer):
         return z
 
     def compute_output_shape(self, input_shape):
-        shape_mu, _ = input_shape
+        shape_mu, _, _ = input_shape
         return shape_mu
 
 
