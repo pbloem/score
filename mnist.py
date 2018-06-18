@@ -32,8 +32,10 @@ def go(options):
     # load data
     (x_train, _), (x_test, _) = mnist.load_data()
 
-    x_train = x_train[..., None]
-    x_test  = x_test[..., None]
+    x_train = x_train[..., None]/255.0
+    x_test  = x_test[..., None]/255.0
+
+    print(np.max(x_train))
 
     n = x_train.shape[0]
 
@@ -114,9 +116,9 @@ def go(options):
             l = auto.train_on_batch([batch, eps], batch)
 
             instances_seen += batch.shape[0]
-            # tbw.add_scalar('score/l1', float(l[0]), instances_seen)
-            # tbw.add_scalar('score/l2', float(l[1]), instances_seen)
-            tbw.add_scalar('score/loss', float(l[0]), instances_seen)
+            tbw.add_scalar('score/l0', float(l[0]), instances_seen)
+            tbw.add_scalar('score/l1', float(l[1]), instances_seen)
+            tbw.add_scalar('score/sum', float(l[0] + l[1]), instances_seen)
 
         ## Plot the latent space
         print('Plotting latent space.')
