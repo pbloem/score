@@ -116,9 +116,9 @@ def go(options):
             l = auto.train_on_batch([batch, eps], batch)
 
             instances_seen += batch.shape[0]
-            tbw.add_scalar('score/l0', float(l[0]), instances_seen)
-            tbw.add_scalar('score/l1', float(l[1]), instances_seen)
-            tbw.add_scalar('score/sum', float(l[0] + l[1]), instances_seen)
+            for li in l:
+                tbw.add_scalar('score/l-{:02}'.format(li), float(li), instances_seen)
+            tbw.add_scalar('score/sum', np.sum(l), instances_seen)
 
         ## Plot the latent space
         print('Plotting latent space.')
