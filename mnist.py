@@ -101,7 +101,7 @@ def go(options):
     instances_seen = 0
 
     for e in range(options.epochs):
-        for fr in tqdm.trange(0, n, b):
+        for fr in tqdm.trange(0, 100, b):
 
             to = fr + b
             if to > n:
@@ -115,7 +115,10 @@ def go(options):
 
             instances_seen += batch.shape[0]
 
-            tbw.add_scalar('score/sum', np.sum(l)/len(l), instances_seen)
+            if l.squeeze().ndim == 0:
+                tbw.add_scalar('score/sum', float(l), instances_seen)
+            else:
+                tbw.add_scalar('score/sum', float(np.sum(l) / len(l)), instances_seen)
 
         ## Plot the latent space
         print('Plotting latent space.')
