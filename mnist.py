@@ -101,7 +101,7 @@ def go(options):
     instances_seen = 0
 
     for e in range(options.epochs):
-        for fr in tqdm.trange(0, 100, b):
+        for fr in tqdm.trange(0, n, b):
 
             to = fr + b
             if to > n:
