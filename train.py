@@ -140,9 +140,6 @@ def go(options):
 
     for ep in tqdm.trange(options.num_videos):
 
-        print('Set KL weight to ', anneal(ep, options.num_videos))
-        K.set_value(kl.weight, anneal(ep, options.num_videos))
-
         #- download videos. One for each instance in the batch.
         l = len(df)
         rand_indices = random.sample(range(l), options.batch_size)
