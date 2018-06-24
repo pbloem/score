@@ -17,6 +17,9 @@ from argparse import ArgumentParser
 from tensorboardX import SummaryWriter
 
 def rec_loss(y_true, y_pred):
+    reshape = Reshape((-1, 28 * 28 * 1))
+    y_true, y_pred = reshape(y_true), reshape(y_pred)
+
     return K.sum(K.binary_crossentropy(y_true, y_pred), axis=-1)
 
 def go(options):
