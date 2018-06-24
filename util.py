@@ -54,7 +54,7 @@ class KLLayer(Layer):
     http://tiao.io/posts/implementing-variational-autoencoders-in-keras-beyond-the-quickstart-tutorial/
     """
 
-    def __init__(self, weight = K.constant(1.0), *args, **kwargs):
+    def __init__(self, weight = None, *args, **kwargs):
         self.is_placeholder = True
         self.weight = weight
         super().__init__(*args, **kwargs)
@@ -66,8 +66,12 @@ class KLLayer(Layer):
         kl_batch = - .5 * K.sum(1 + log_var -
                                 K.square(mu) -
                                 K.exp(log_var), axis=-1)
+        if self.weight is None:
+            loss = kl_batch
+        else
+            loss = kl_batch * self.weight
 
-        self.add_loss(self.weight * kl_batch)
+        self.add_loss(loss)
 
         return inputs
 
@@ -124,6 +128,8 @@ def plot(latents, images, size=0.00001, filename='latent_space.pdf', invert=Fals
 
     assert(latents.shape[0] == images.shape[0])
 
+    mn, mx = np.min(latents), np.max(latents)
+
     n, h, w, c = images.shape
 
     aspect = h/w
@@ -138,7 +144,9 @@ def plot(latents, images, size=0.00001, filename='latent_space.pdf', invert=Fals
 
         ax.imshow(im if c > 1 else im.squeeze(2), extent=(x, x + size, y, y + size*aspect), cmap='gray_r' if invert else 'gray')
 
-    ax.scatter(latents[:, 0], latents[:, 1], alpha=0.01, linewidth=0)
+    # ax.scatter(latents[:, 0], latents[:, 1], alpha=0.01, linewidth=0)
+    ax.set_xlim(mn, mx)
+    ax.set_ylim(mn, mx)
 
     plt.savefig(filename)
     plt.close(fig)

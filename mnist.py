@@ -4,6 +4,7 @@ Simple MNIST sanity check for the VAE
 """
 
 import keras
+from keras import backend as K
 from keras.datasets import mnist
 from keras.layers import Conv2D, MaxPooling2D, \
     Flatten, Dense, Input, Reshape, UpSampling2D, Conv2DTranspose
@@ -15,6 +16,8 @@ from argparse import ArgumentParser
 
 from tensorboardX import SummaryWriter
 
+def rec_loss(y_true, y_pred):
+    return K.sum(K.binary_crossentropy(y_true, y_pred), axis=-1)
 
 def go(options):
 
@@ -94,14 +97,14 @@ def go(options):
 
     opt = keras.optimizers.Adam(lr=options.lr)
     auto.compile(optimizer=opt,
-                 loss='binary_crossentropy')
+                 loss=rec_loss)
 
     ### Fit model
     b = options.batch_size
     instances_seen = 0
 
     for e in range(options.epochs):
-        for fr in tqdm.trange(0, n, b):
+        for fr in tqdm.trange(0, 100, b):
 
             to = fr + b
             if to > n:
@@ -124,15 +127,17 @@ def go(options):
         print('Plotting latent space.')
 
         latents = encoder.predict(x_test)[0]
-        print('Computed latent vectors.')
+        print('-- Computed latent vectors.')
 
         rng = np.max(latents[:, 0]) - np.min(latents[:, 0])
 
-        print('L', latents[:10,:])
-        print('range', rng)
+        print('-- L', latents[:10,:])
+        print('-- range', rng)
 
         n_test = latents.shape[0]
         util.plot(latents, x_test, size=rng/math.sqrt(n_test), filename='mnist.{:04}.pdf'.format(e), invert=True)
+        print('-- finished plot')
+
 
 if __name__ == "__main__":
 
@@ -147,7 +152,7 @@ if __name__ == "__main__":
     parser.add_argument("-L", "--latent-size",
                         dest="latent_size",
                         help="Size of the latent representation",
-                        default=256, type=int)
+                        default=2, type=int)
 
     parser.add_argument("-l", "--learn-rate",
                         dest="lr",
