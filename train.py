@@ -72,6 +72,7 @@ def go(options):
     ## Build the model
 
     input = Input(shape=(HEIGHT, WIDTH, 3))
+    eps   = Input(shape=(options.latent_size,))
 
     a, b, c = 8, 32, 128
 
@@ -95,8 +96,8 @@ def go(options):
     zlsig = Dense(options.latent_size)(h)
 
     kl = util.KLLayer()
-    [zmean, zlsig] = kl([zmean, zlsig])
-    zsample = util.Sample()([zmean, zlsig])
+    zmean, zlsig = kl([zmean, zlsig])
+    zsample = util.Sample()([zmean, zlsig, eps])
 
     h = Dense(5 * 4 * 128, activation='relu')(zsample)
     #  h = Dense(HEIGHT//(4*4*4) * WIDTH//(4*4*4) * 128, activation='relu')(zsample)
@@ -120,7 +121,7 @@ def go(options):
 
     encoder = Model(input, [zmean, zlsig])
     # decoder = Model(zsample, output)
-    auto = Model(input, output)
+    auto = Model([input, eps], output)
 
     if options.num_gpu is not None:
         auto = multi_gpu_model(auto, gpus=options.num_gpu)
@@ -181,7 +182,9 @@ def go(options):
                         batch[i, ...] = frame
                         finished = False
 
-            l = auto.train_on_batch(batch, batch)
+            eps = np.random.randn(batch.shape[0], options.latent_size)
+
+            l = auto.train_on_batch([batch, eps], batch)
 
             instances_seen += batch.shape[0]
 
@@ -240,7 +243,7 @@ if __name__ == "__main__":
     parser.add_argument("-b", "--batch-size",
                         dest="batch_size",
                         help="Batch size",
-                        default=8, type=int)
+                        default=32, type=int)
 
     parser.add_argument("-D", "--data-directory",
                         dest="data_dir",
