@@ -39,19 +39,21 @@ import util
 
 WIDTH, HEIGHT = 320, 256
 
-
 def anneal(step, total, k=1.0, anneal_function='logistic'):
     if anneal_function == 'logistic':
         return float(1 / (1 + np.exp(-k * (step - total / 2))))
     elif anneal_function == 'linear':
         return min(1, step / total)
 
+def rec_loss(y_true, y_pred):
+    reshape = Reshape((-1, WIDTH * HEIGHT * 3))
+    y_true, y_pred = reshape(y_true), reshape(y_pred)
+
+    return K.sum(K.binary_crossentropy(y_true, y_pred), axis=-1)
+
 def go(options):
 
     ## Admin
-
-    # Check to make sur ethe GPU is recognized (keras takes care of the rest)
-    print('devices', device_lib.list_local_devices())
 
     # Tensorboard output
     tbw = SummaryWriter(log_dir=options.tb_dir)
@@ -125,7 +127,7 @@ def go(options):
 
     opt = keras.optimizers.Adam(lr=options.lr)
     auto.compile(optimizer=opt,
-                 loss='binary_crossentropy')
+                 loss=rec_loss)
 
     ## Training loop
 
@@ -182,9 +184,11 @@ def go(options):
             l = auto.train_on_batch(batch, batch)
 
             instances_seen += batch.shape[0]
-            tbw.add_scalar('score/l1', float(l[0]), instances_seen)
-            tbw.add_scalar('score/l2', float(l[1]), instances_seen)
-            tbw.add_scalar('score/total', float(l[0] + l[1]), instances_seen)
+
+            if l.squeeze().ndim == 0:
+                tbw.add_scalar('score/sum', float(l), instances_seen)
+            else:
+                tbw.add_scalar('score/sum', float(np.sum(l) / len(l)), instances_seen)
 
             if finished:
                 break
@@ -200,15 +204,17 @@ def go(options):
             print('Plotting latent space.')
 
             latents = encoder.predict(images)[0]
-            print('Computed latent vectors.')
+            print('-- Computed latent vectors.')
 
             rng = np.max(latents[:, 0]) - np.min(latents[:, 0])
 
-            print('L', latents[:10,:])
-            print('range', rng)
+            print('-- L', latents[:10,:])
+            print('-- range', rng)
 
             n = latents.shape[0]
-            util.plot(latents, images, size=rng/n)
+            util.plot(latents, images, size=rng/math.sqrt(n), filename='score.{:04}.pdf'.format(e))
+
+
 
 
 if __name__ == "__main__":
