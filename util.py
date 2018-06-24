@@ -68,7 +68,7 @@ class KLLayer(Layer):
                                 K.exp(log_var), axis=-1)
         if self.weight is None:
             loss = kl_batch
-        else
+        else:
             loss = kl_batch * self.weight
 
         self.add_loss(loss)
