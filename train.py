@@ -212,7 +212,7 @@ def go(options):
             print('-- range', rng)
 
             n = latents.shape[0]
-            util.plot(latents, images, size=rng/math.sqrt(n), filename='score.{:04}.pdf'.format(e))
+            util.plot(latents, images, size=rng/math.sqrt(n), filename='score.{:04}.pdf'.format(ep))
 
 
 
