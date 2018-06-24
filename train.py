@@ -28,12 +28,16 @@ import numpy as np
 
 from tensorboardX import SummaryWriter
 
+from scipy.misc import imresize
+
 import pandas as pd
 import wget
 import numpy as np
 import os
 import matplotlib.pyplot as plt
-import tqdm, cv2
+import tqdm
+
+import skvideo.io
 
 import util
 
@@ -144,7 +148,7 @@ def go(options):
         l = len(df)
         rand_indices = random.sample(range(l), options.batch_size)
 
-        caps = [] # video capture objects
+        generators = [] # video capture objects
         files = []
 
         if options.model_file is not None:
@@ -156,8 +160,10 @@ def go(options):
                 file = wget.download(url, out=options.data_dir)
             except:
                 raise Exception('Download failed for file', url)
-            caps.append(cv2.VideoCapture(file))
+
+            generators.append(skvideo.io.vreader(file))
             files.append(file)
+
         print('done.')
 
         instances_seen = 0
@@ -167,15 +173,12 @@ def go(options):
 
             batch = np.zeros(shape=(options.batch_size, HEIGHT, WIDTH, 3))
 
+            for i, gen in enumerate(generators):
+                for j, frame in enumerate(gen):
 
-            for i, cap in enumerate(caps):
-                if cap.isOpened():
-                    ret, frame = cap.read()
-                    if(ret):
-                        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                        newsize = (HEIGHT, WIDTH)
 
-                        newsize = (WIDTH, HEIGHT)
-                        frame = cv2.resize(frame, newsize)
+                        frame = imresize(frame, newsize)/255
                         batch[i, ...] = frame
                         finished = False
 
@@ -192,9 +195,6 @@ def go(options):
 
             if finished:
                 break
-
-        for cap in caps:
-            cap.release()
 
         for file in files:
             os.remove(file)
@@ -215,9 +215,6 @@ def go(options):
             print('-- plot size', rng/math.sqrt(n_test))
 
             util.plot(latents, images, size=rng/math.sqrt(n_test), filename='score.{:04}.pdf'.format(ep))
-
-
-
 
 if __name__ == "__main__":
 
@@ -267,8 +264,7 @@ if __name__ == "__main__":
     parser.add_argument("-S", "--sample-file",
                         dest="sample_file",
                         help="Saved numpy array with random frames",
-                        default=None, type=str)
-
+                        default='./sample.npz', type=str)
 
     parser.add_argument("-r", "--random-seed",
                         dest="seed",

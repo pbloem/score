@@ -11,11 +11,12 @@ import pandas as pd
 import wget
 import numpy as np
 import tqdm, cv2
+import skvideo.io
+
+from scipy.misc import imresize
 
 def go(options):
-    """Samples a small number of random frames from a large number or random videos"""
-
-    # Tensorboard output
+    """Samples a small number of random frames from a large number of random videos"""
 
     # Set random or det. seed
     if options.seed < 0:
@@ -45,29 +46,30 @@ def go(options):
         print('Downloading video', url)
         file = wget.download(url, out=options.data_dir)
 
-        cap = cv2.VideoCapture(file)
-        length = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        gen = skvideo.io.vreader(file)
+
+        length = 0
+        for _ in gen:
+            length += 1
+
+        print('\nlength', length)
+        gen = skvideo.io.vreader(file, num_frames=length)
 
         frames = random.sample(range(length), options.num_frames)
 
-        f = 0
-        if cap.isOpened():
-
-            ret, frame = cap.read()
-            if (ret):
+        for f, frame in enumerate(gen):
                 if f in  frames:
-                    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
-                    newsize = (options.width, options.height)
-                    frame = cv2.resize(frame, newsize)
+                    newsize = (options.height, options.width)
+                    frame = imresize(frame, newsize)/255
+
                     result[i, ...] = frame
                     i += 1
                 f += 1
 
-        cap.release()
         os.remove(file)
 
-    np.savez_compressed('sample.npy', images=result)
+    np.savez_compressed('sample.npz', images=result)
 
 if __name__ == "__main__":
 
