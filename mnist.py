@@ -104,7 +104,7 @@ def go(options):
     instances_seen = 0
 
     for e in range(options.epochs):
-        for fr in tqdm.trange(0, 100, b):
+        for fr in tqdm.trange(0, n, b):
 
             to = fr + b
             if to > n:
@@ -124,19 +124,20 @@ def go(options):
                 tbw.add_scalar('score/sum', float(np.sum(l) / len(l)), instances_seen)
 
         ## Plot the latent space
-        print('Plotting latent space.')
+        if e % options.out_every == 0:
+            print('Plotting latent space.')
 
-        latents = encoder.predict(x_test)[0]
-        print('-- Computed latent vectors.')
+            latents = encoder.predict(x_test)[0]
+            print('-- Computed latent vectors.')
 
-        rng = np.max(latents[:, 0]) - np.min(latents[:, 0])
+            rng = np.max(latents[:, 0]) - np.min(latents[:, 0])
 
-        print('-- L', latents[:10,:])
-        print('-- range', rng)
+            print('-- L', latents[:10,:])
+            print('-- range', rng)
 
-        n_test = latents.shape[0]
-        util.plot(latents, x_test, size=rng/math.sqrt(n_test), filename='mnist.{:04}.pdf'.format(e), invert=True)
-        print('-- finished plot')
+            n_test = latents.shape[0]
+            util.plot(latents, x_test, size=rng/math.sqrt(n_test), filename='mnist.{:04}.pdf'.format(e), invert=True)
+            print('-- finished plot')
 
 
 if __name__ == "__main__":
@@ -148,6 +149,11 @@ if __name__ == "__main__":
                         dest="epochs",
                         help="Number of epochs.",
                         default=20, type=int)
+
+    parser.add_argument("-o", "--out-every",
+                        dest="out_every",
+                        help="Output every x epochs.",
+                        default=10, type=int)
 
     parser.add_argument("-L", "--latent-size",
                         dest="latent_size",
