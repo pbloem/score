@@ -208,11 +208,13 @@ def go(options):
 
             rng = np.max(latents[:, 0]) - np.min(latents[:, 0])
 
+            n_test = latents.shape[0]
+
             print('-- L', latents[:10,:])
             print('-- range', rng)
+            print('-- plot size', rng/math.sqrt(n_test))
 
-            n = latents.shape[0]
-            util.plot(latents, images, size=rng/math.sqrt(n), filename='score.{:04}.pdf'.format(ep))
+            util.plot(latents, images, size=rng/math.sqrt(n_test), filename='score.{:04}.pdf'.format(ep))
 
 
 

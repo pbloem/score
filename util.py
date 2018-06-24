@@ -152,24 +152,3 @@ def plot(latents, images, size=0.00001, filename='latent_space.pdf', invert=Fals
 
     plt.savefig(filename)
     plt.close(fig)
-
-def interpolate(decoder):
-
-    # display a 2D manifold of the digits
-    n = 15  # figure with 15x15 digits
-    digit_size = 28
-
-    # linearly spaced coordinates on the unit square were transformed
-    # through the inverse CDF (ppf) of the Gaussian to produce values
-    # of the latent variables z, since the prior of the latent space
-    # is Gaussian
-
-    z1 = norm.ppf(np.linspace(0.01, 0.99, n))
-    z2 = norm.ppf(np.linspace(0.01, 0.99, n))
-    z_grid = np.dstack(np.meshgrid(z1, z2))
-
-    x_pred_grid = decoder.predict(z_grid.reshape(n * n, latent_dim)) \
-        .reshape(n, n, digit_size, digit_size)
-
-    plt.figure(figsize=(10, 10))
-    plt.imshow(np.block(list(map(list, x_pred_grid))), cmap='gray')
