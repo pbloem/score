@@ -142,6 +142,8 @@ def go(options):
     # Test images to plot
     images = np.load(options.sample_file)['images']
 
+    instances_seen = 0
+
     for ep in tqdm.trange(options.num_videos):
 
         #- download videos. One for each instance in the batch.
@@ -164,23 +166,28 @@ def go(options):
             generators.append(skvideo.io.vreader(file))
             files.append(file)
 
-        print('done.')
-
-        instances_seen = 0
+        print('\ndone.')
 
         while True:
-            finished = True
-
-            batch = np.zeros(shape=(options.batch_size, HEIGHT, WIDTH, 3))
-
+            batch = []
             for i, gen in enumerate(generators):
-                for j, frame in enumerate(gen):
 
-                        newsize = (HEIGHT, WIDTH)
+                try:
+                    frame = next(gen)
 
-                        frame = imresize(frame, newsize)/255
-                        batch[i, ...] = frame
-                        finished = False
+                    newsize = (HEIGHT, WIDTH)
+
+                    frame = imresize(frame, newsize)/255
+
+                    batch.append(frame[None, ...])
+
+                except Exception as e:
+                    pass
+
+            if len(batch) == 0:
+                break
+
+            batch = np.concatenate(batch, axis=0)
 
             eps = np.random.randn(batch.shape[0], options.latent_size)
 
@@ -192,9 +199,6 @@ def go(options):
                 tbw.add_scalar('score/sum', float(l), instances_seen)
             else:
                 tbw.add_scalar('score/sum', float(np.sum(l) / len(l)), instances_seen)
-
-            if finished:
-                break
 
         for file in files:
             os.remove(file)
