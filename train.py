@@ -161,7 +161,8 @@ def go(options):
             try:
                 file = wget.download(url, out=options.data_dir)
             except:
-                raise Exception('Download failed for file', url)
+                print('Download failed for file', url)
+                break
 
             generators.append(skvideo.io.vreader(file))
             files.append(file)
