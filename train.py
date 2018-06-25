@@ -198,10 +198,10 @@ def go(options):
 
             if l.squeeze().ndim == 0:
                 tbw.add_scalar('score/sum', float(l), instances_seen)
-                print(float(l), instances_seen)
+                # print(float(l), instances_seen)
             else:
                 tbw.add_scalar('score/sum', float(np.sum(l) / len(l)), instances_seen)
-                print(float(np.sum(l) / len(l)), instances_seen)
+                # print(float(np.sum(l) / len(l)), instances_seen)
 
         for file in files:
             os.remove(file)
