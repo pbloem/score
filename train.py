@@ -33,7 +33,7 @@ from scipy.misc import imresize
 import pandas as pd
 import wget
 import numpy as np
-import os
+import os, time
 import matplotlib.pyplot as plt
 import tqdm
 
@@ -72,6 +72,37 @@ def go(options):
     print('random seed: ', seed)
 
     util.ensure(options.data_dir)
+
+    ## Download videos
+    df = pd.read_csv(options.video_urls, header=None)
+    if options.max_videos is not None:
+        df = df[:options.max_videos]
+
+    urls = df.iloc[:, 2]
+
+    files = []
+    lengths = []
+
+    t0 = time.time()
+
+    for url in tqdm.tqdm(urls):
+        # - download videos. One for each instance in the batch.
+
+        print('Downloading video', url)
+        file = wget.download(url, out=options.data_dir)
+
+        gen = skvideo.io.vreader(file)
+
+        length = 0
+        for _ in gen:
+            length += 1
+
+        if length > 100:
+            files.append(file)
+            lengths.append(length)
+
+    print('All {} videos downloaded ({} s)'.format(len(files), time.time()-t0))
+    print('Total number of frames in data:', sum(lengths))
 
     ## Build the model
 
@@ -127,84 +158,61 @@ def go(options):
     # decoder = Model(zsample, output)
     auto = Model([input, eps], output)
 
-    if options.num_gpu is not None:
-        auto = multi_gpu_model(auto, gpus=options.num_gpu)
-
     opt = keras.optimizers.Adam(lr=options.lr)
     auto.compile(optimizer=opt,
                  loss=rec_loss)
 
     ## Training loop
 
-    #- data urls
-    df = pd.read_csv(options.video_urls, header=None)
-
     # Test images to plot
     images = np.load(options.sample_file)['images']
 
     instances_seen = 0
+    per_video = math.ceil(options.epoch_size / len(files))
+    total = len(files) * per_video
 
-    for ep in tqdm.trange(options.num_videos):
+    for ep in tqdm.trange(options.epochs):
+        print('Sampling batch'); t0 = time.time()
 
-        #- download videos. One for each instance in the batch.
-        l = len(df)
-        rand_indices = random.sample(range(l), options.batch_size)
+        batch = np.zeros((total, HEIGHT, WIDTH, 3))
+        i = 0
 
-        generators = [] # video capture objects
-        files = []
+        for file, length in zip(files, lengths):
 
-        if options.model_file is not None:
-            auto.save(options.model_file)
+            gen = skvideo.io.vreader(file)
+            frames = random.sample(range(length), per_video)
 
-        print('downloading video batch.')
-        for url in df.iloc[rand_indices, 2]:
-            try:
-                file = wget.download(url, out=options.data_dir)
-            except:
-                print('Download failed for file', url)
-                break
-
-            generators.append(skvideo.io.vreader(file))
-            files.append(file)
-
-        print('\ndone.')
-
-        while True:
-            batch = []
-            for i, gen in enumerate(generators):
-
+            for i, frame in enumerate(gen):
                 try:
                     frame = next(gen)
+                    if i in frames:
+                        newsize = (HEIGHT, WIDTH)
 
-                    newsize = (HEIGHT, WIDTH)
+                        frame = imresize(frame, newsize)/255
 
-                    frame = imresize(frame, newsize)/255
-
-                    batch.append(frame[None, ...])
+                        batch[i] = frame
 
                 except Exception as e:
                     pass
 
-            if len(batch) == 0:
-                break
+        print('Batch sampled ({} s).'.format(time.time() - t0))
+        print('Batch size:', batch.shape); t0 = time.time()
 
-            batch = np.concatenate(batch, axis=0)
+        eps = np.random.randn(batch.shape[0], options.latent_size)
+        l = auto.fit([batch, eps], batch, epochs=1, validation_split=1/10)
+        print('Batch trained ({} s).'.format(time.time() - t0))
 
-            eps = np.random.randn(batch.shape[0], options.latent_size)
+        instances_seen += batch.shape[0]
 
-            l = auto.train_on_batch([batch, eps], batch)
+        # if l.squeeze().ndim == 0:
+        #     l = float(l)
+        # else:
+        #     l = float(np.sum(l) / len(l))
+        #
+        # tbw.add_scalar('score/sum', l, instances_seen)
 
-            instances_seen += batch.shape[0]
-
-            if l.squeeze().ndim == 0:
-                tbw.add_scalar('score/sum', float(l), instances_seen)
-                # print(float(l), instances_seen)
-            else:
-                tbw.add_scalar('score/sum', float(np.sum(l) / len(l)), instances_seen)
-                # print(float(np.sum(l) / len(l)), instances_seen)
-
-        for file in files:
-            os.remove(file)
+        if options.model_dir is not None:
+            encoder.save(options.model_dir + '/encoder.{}.{:04}.keras_model'.format(ep, l))
 
         ## Plot the latent space
         if options.sample_file is not None:
@@ -223,15 +231,23 @@ def go(options):
 
             util.plot(latents, images, size=rng/math.sqrt(n_test), filename='score.{:04}.pdf'.format(ep))
 
+    for file in files:
+        os.remove(file)
+
 if __name__ == "__main__":
 
     ## Parse the command line options
     parser = ArgumentParser()
 
-    parser.add_argument("-v", "--num-vid-batches",
-                        dest="num_videos",
-                        help="Number of of video batches.",
-                        default=150, type=int)
+    parser.add_argument("-e", "--epochs",
+                        dest="epochs",
+                        help="Number of 'epochs'.",
+                        default=50, type=int)
+
+    parser.add_argument("-E", "--epoch-size",
+                        dest="epoch_size",
+                        help="How many frames to sample for one 'epoch'.",
+                        default=10000, type=int)
 
     parser.add_argument("-L", "--latent-size",
                         dest="latent_size",
@@ -256,10 +272,10 @@ if __name__ == "__main__":
     parser.add_argument("-T", "--tb-directory",
                         dest="tb_dir",
                         help="Tensorboard directory",
-                        default='./runs/lm', type=str)
+                        default='./runs/score', type=str)
 
-    parser.add_argument("-M", "--model-file",
-                        dest="model_file",
+    parser.add_argument("-M", "--model-dir",
+                        dest="model_dir",
                         help="Where to save the model (if None, the model will not be saved). The model will be overwritten every video batch.",
                         default=None, type=str)
 
@@ -278,9 +294,9 @@ if __name__ == "__main__":
                         help="RNG seed. Negative for random. Chosen seed will be printed to sysout",
                         default=1, type=int)
 
-    parser.add_argument("-g", "--num-gpu",
-                        dest="num_gpu",
-                        help="How many GPUs to use",
+    parser.add_argument("-m", "--max-videos",
+                        dest="max_videos",
+                        help="Limit the total number of videos analyzed. (If None all videos are downloaded).",
                         default=None, type=int)
 
     options = parser.parse_args()

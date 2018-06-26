@@ -13,7 +13,7 @@ import numpy as np
 import tqdm, cv2
 import skvideo.io
 
-from scipy.misc import imresize
+from scipy.misc import imresize, imsave
 
 def go(options):
     """Samples a small number of random frames from a large number of random videos"""
@@ -67,9 +67,9 @@ def go(options):
                     i += 1
                 f += 1
 
-        os.remove(file)
+        # os.remove(file)
 
-    np.savez_compressed('sample.npz', images=result)
+    # np.savez_compressed('sample.npz', images=result)
 
 if __name__ == "__main__":
 
