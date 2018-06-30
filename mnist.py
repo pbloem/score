@@ -147,13 +147,14 @@ def go(options):
                 if torch.cuda.is_available():
                     batch = batch.cuda()
                 batch = Variable(batch)
-                out_batches[i] = encoder(batch)[:options.latent_size].data
+                out_batches[i] = encoder(batch).data[:, :options.latent_size]
 
             latents = torch.cat(out_batches, dim=0)
+            print(latents.size(0), test_images.shape[0])
 
             print('-- Computed latent vectors.')
 
-            rng = np.max(latents[:, 0]) - np.min(latents[:, 0])
+            rng = float(torch.max(latents[:, 0]) - torch.min(latents[:, 0]))
 
             print('-- L', latents[:10,:])
             print('-- range', rng)
