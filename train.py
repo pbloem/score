@@ -117,13 +117,14 @@ def go(options):
         Linear(options.latent_size, 5 * 4 * c), ReLU(),
         util.Reshape((c, 4, 5)),
         Upsample(scale_factor=4, mode=upmode),
+        # util.Debug(lambda x: print('1', x.shape)),
         ConvTranspose2d(c, c, (5, 5), padding=2), ReLU(),
         ConvTranspose2d(c, c, (5, 5), padding=2), ReLU(),
-        ConvTranspose2d(c, c, (5, 5), padding=2), ReLU(),
+        ConvTranspose2d(c, b, (5, 5), padding=2), ReLU(),
         Upsample(scale_factor=4, mode=upmode),
         ConvTranspose2d(b, b, (5, 5), padding=2), ReLU(),
         ConvTranspose2d(b, b, (5, 5), padding=2), ReLU(),
-        ConvTranspose2d(b, b, (5, 5), padding=2), ReLU(),
+        ConvTranspose2d(b, a, (5, 5), padding=2), ReLU(),
         Upsample(scale_factor=4, mode=upmode),
         ConvTranspose2d(a, a, (5, 5), padding=2), ReLU(),
         ConvTranspose2d(a, a, (5, 5), padding=2), ReLU(),
@@ -143,7 +144,7 @@ def go(options):
     instances_seen = 0
 
     # Test images to plot
-    images = np.load(options.sample_file)['images']
+    images = torch.from_numpy(np.load(options.sample_file)['images'])
 
     per_video = math.ceil(options.epoch_size / len(files))
     total = len(files) * per_video
@@ -151,7 +152,7 @@ def go(options):
     for ep in tqdm.trange(options.epochs):
         print('Sampling superbatch'); t0 = time.time()
 
-        sbatch = torch.zeros(total, HEIGHT, WIDTH, 3)
+        sbatch = torch.zeros(total, 3, HEIGHT, WIDTH)
         i = 0
 
         for file, length in zip(files, lengths):
@@ -159,20 +160,17 @@ def go(options):
             gen = skvideo.io.vreader(file)
             frames = random.sample(range(length), per_video)
 
-            for i, frame in enumerate(gen):
-                try:
-                    frame = next(gen)
-                    if i in frames:
-                        newsize = (HEIGHT, WIDTH)
+            for f, frame in enumerate(gen):
+                if f in frames:
+                    newsize = (HEIGHT, WIDTH)
 
-                        frame = imresize(frame, newsize)/255
+                    frame = imresize(frame, newsize)/255
 
-                        sbatch[i] = torch.from_numpy(frame)
-
-                except Exception as e:
-                    pass
+                    sbatch[i] = torch.from_numpy(frame).permute(2, 0, 1)
+                    i = i + 1
 
         print('Superbatch sampled ({} s).'.format(time.time() - t0))
+        print('-- {} frames added, to tensor of length {}'.format(i, sbatch.size(0)))
         print('Superbatch size:', sbatch.size()); t0 = time.time()
 
         for fr in tqdm.trange(0, sbatch.size(0), options.batch_size):
@@ -191,6 +189,8 @@ def go(options):
 
             # Forward pass
 
+            b, c, h, w = batch.size()
+
             zcomb = encoder(batch)
             zmean, zlsig = zcomb[:, :options.latent_size], zcomb[:, options.latent_size:]
 
@@ -200,8 +200,7 @@ def go(options):
 
             out = decoder(zsample)
 
-            rec_loss = binary_cross_entropy(out, batch, reduce=False)
-            print(rec_loss.shape)
+            rec_loss = binary_cross_entropy(out, batch, reduce=False).view(b, -1).sum(dim=1)
 
             # Backward pass
 
@@ -216,7 +215,7 @@ def go(options):
             tbw.add_scalar('score/rec', float(rec_loss.mean()), instances_seen)
             tbw.add_scalar('score/loss', float(loss), instances_seen)
 
-        print('Superatch trained ({} s).'.format(time.time() - t0))
+        print('Superbatch trained ({} s).'.format(time.time() - t0))
 
         instances_seen += batch.shape[0]
 
@@ -228,21 +227,31 @@ def go(options):
         # tbw.add_scalar('score/sum', l, instances_seen)
 
         if options.model_dir is not None:
-            encoder.save(options.model_dir + '/encoder.{}.{:04}.keras_model'.format(ep, l))
+            torch.save(encoder.state_dict(), options.model_dir + '/encoder.{}.{:04}.keras_model'.format(ep, float(loss) ))
+            torch.save(decoder.state_dict(), options.model_dir + '/decoder.{}.{:04}.keras_model'.format(ep, float(loss) ))
 
         ## Plot the latent space
         if options.sample_file is not None:
             print('Plotting latent space.')
 
-            out_batches = [None] * len(test_batches)
-            for i, batch in enumerate(test_batches):
+            l = images.size(0)
+            b = options.batch_size
+
+            out_batches = []
+
+            for fr in range(0, l, b):
+                to = min(fr + b, l)
+
+                batch = images[fr:to]
+
                 if torch.cuda.is_available():
                     batch = batch.cuda()
                 batch = Variable(batch)
-                out_batches[i] = encoder(batch).data[:, :options.latent_size]
+                out = encoder(batch).data[:, :options.latent_size]
+
+                out_batches.append(out)
 
             latents = torch.cat(out_batches, dim=0)
-            print(latents.size(0), test_images.shape[0])
 
             print('-- Computed latent vectors.')
 
@@ -252,9 +261,8 @@ def go(options):
             print('-- range', rng)
 
             n_test = latents.shape[0]
-            util.plot(latents.cpu().numpy(), test_images, size=rng / math.sqrt(n_test),
-                      filename='mnist.{:04}.pdf'.format(epoch), invert=True)
-
+            util.plot(latents.cpu().numpy(), images.numpy(), size=rng / math.sqrt(n_test),
+                      filename='score.{:04}.pdf'.format(ep), invert=True)
 
             print('-- finished plot')
     for file in files:
