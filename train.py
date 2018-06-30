@@ -247,7 +247,7 @@ def go(options):
                 if torch.cuda.is_available():
                     batch = batch.cuda()
                 batch = Variable(batch)
-                out = encoder(batch).data[:, :options.latent_size]
+                out = encoder(batch.float()).data[:, :options.latent_size]
 
                 out_batches.append(out)
 
