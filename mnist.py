@@ -142,7 +142,7 @@ def go(options):
         if epoch % options.out_every == 0:
             print('Plotting latent space.')
 
-            out_batches = [None] * test_batches
+            out_batches = [None] * len(test_batches)
             for i, batch in enumerate(test_batches):
                 if torch.cuda.is_available():
                     batch = batch.cuda()
