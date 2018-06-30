@@ -1,18 +1,12 @@
-import keras
 
-from keras.preprocessing.text import text_to_word_sequence
-from keras.models import Sequential
-from keras.layers import Layer, Input
-from keras.layers.recurrent import LSTM
-from keras.optimizers import Adam, RMSprop
-from keras.utils import to_categorical
-import keras.utils
-import keras.backend as K
 
 import numpy as np
 import os, sys
 import datetime, pathlib
-from keras.preprocessing import sequence
+
+import torch
+from torch.autograd import Variable
+from torch import nn
 
 import matplotlib as mpl
 mpl.use('Agg')
@@ -21,106 +15,33 @@ from matplotlib import cm
 
 from scipy.stats import norm
 
-import cv2
 
-def to_categorical(batch, num_classes):
-    """
-    Converts a batch of length-padded integer sequences to a one-hot encoded sequence
-    :param batch:
-    :param num_classes:
-    :return:
-    """
+def kl_loss(zmean, zlsig):
+    b, l = zmean.size()
 
-    b, l = batch.shape
+    kl = -0.5 * torch.sum(1 + zlsig - zmean.pow(2) - zlsig.exp(), dim=1)
 
-    out = np.zeros((b, l, num_classes))
+    assert kl.size() == (b,)
 
-    for i in range(b):
-        seq = batch[0, :]
-        out[i, :, :] = keras.utils.to_categorical(seq, num_classes=num_classes)
+    return kl
 
-    return out
+def sample(zmean, zlsig, eps=None):
+    b, l = zmean.size()
+
+    if eps is None:
+        eps = torch.random.randn(b, l)
+        if torch.cuda.is_available():
+            eps = eps.cuda()
+        eps = Variable(eps)
+
+    return zmean + eps * (zlsig * 0.5).exp()
+
 
 def chunks(l, n):
     """Yield successive n-sized chunks from l."""
     for i in range(0, len(l), n):
         yield l[i:i + n]
 
-class KLLayer(Layer):
-
-    """
-    Identity transform layer that adds KL divergence
-    to the final model loss.
-
-    http://tiao.io/posts/implementing-variational-autoencoders-in-keras-beyond-the-quickstart-tutorial/
-    """
-
-    def __init__(self, weight = None, *args, **kwargs):
-        self.is_placeholder = True
-        self.weight = weight
-        super().__init__(*args, **kwargs)
-
-    def call(self, inputs):
-
-        mu, log_var = inputs
-
-        kl_batch = - .5 * K.sum(1 + log_var -
-                                K.square(mu) -
-                                K.exp(log_var), axis=-1)
-        if self.weight is None:
-            loss = kl_batch
-        else:
-            loss = kl_batch * self.weight
-
-        self.add_loss(loss)
-
-        return inputs
-
-class Sample(Layer):
-
-    """
-    Performs sampling step
-
-    """
-    def __init__(self, *args, **kwargs):
-        self.is_placeholder = True
-        super().__init__(*args, **kwargs)
-
-    def call(self, inputs):
-
-        mu, log_var, eps = inputs
-
-        eps = Input(tensor=K.random_normal(shape=K.shape(mu) ))
-
-        z = K.exp(.5 * log_var) * eps + mu
-
-        return z
-
-    def compute_output_shape(self, input_shape):
-        shape_mu, _, _ = input_shape
-        return shape_mu
-
-
-def loadmovie(file):
-    cap = cv2.VideoCapture(file)
-    frameCount = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    frameWidth = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-    frameHeight = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-
-    print(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-
-    buf = np.empty((frameCount, frameHeight, frameWidth, 3), np.dtype('uint8'))
-
-    fc = 0
-    ret = True
-
-    while (fc < frameCount and ret):
-        ret, buf[fc] = cap.read()
-        fc += 1
-
-    cap.release()
-
-    return buf
 
 def ensure(dir):
     pathlib.Path(dir).mkdir(parents=True, exist_ok=True)
@@ -152,3 +73,35 @@ def plot(latents, images, size=0.00001, filename='latent_space.pdf', invert=Fals
 
     plt.savefig(filename)
     plt.close(fig)
+
+
+
+class Lambda(nn.Module):
+    def __init__(self, lambd):
+        super(Lambda, self).__init__()
+        self.lambd = lambd
+    def forward(self, x):
+        return self.lambd(x)
+
+class Debug(nn.Module):
+    """
+    Executes a lambda function and then returns the input. Useful for debugging.
+    """
+    def __init__(self, lambd):
+        super(Debug, self).__init__()
+        self.lambd = lambd
+    def forward(self, x):
+        self.lambd(x)
+        return x
+
+class Flatten(nn.Module):
+    def forward(self, input):
+        return input.view(input.size(0), -1)
+
+class Reshape(nn.Module):
+    def __init__(self, shape):
+        super().__init__()
+        self.shape = shape
+
+    def forward(self, input):
+        return input.view( (input.size(0),) + self.shape)

@@ -3,12 +3,14 @@ Simple MNIST sanity check for the VAE
 
 """
 
-import keras
-from keras import backend as K
-from keras.datasets import mnist
-from keras.layers import Conv2D, MaxPooling2D, \
-    Flatten, Dense, Input, Reshape, UpSampling2D, Conv2DTranspose
-from keras import Model
+
+import torch
+
+from torch.optim import Adam
+from torch.nn.functional import binary_cross_entropy
+from torch.nn import Conv2d, ConvTranspose2d, MaxPool2d, Linear, Sequential, ReLU, Sigmoid, Upsample
+from torch.autograd import Variable
+
 import numpy as np
 import util, random, tqdm, math
 
@@ -16,13 +18,11 @@ from argparse import ArgumentParser
 
 from tensorboardX import SummaryWriter
 
-def rec_loss(y_true, y_pred):
-    reshape = Reshape((-1, 28 * 28 * 1))
-    y_true, y_pred = reshape(y_true), reshape(y_pred)
-
-    return K.sum(K.binary_crossentropy(y_true, y_pred), axis=-1)
+import torchvision
+from torchvision import transforms
 
 def go(options):
+
 
     tbw = SummaryWriter(log_dir=options.tb_dir)
 
@@ -36,101 +36,122 @@ def go(options):
     print('random seed: ', seed)
 
     # load data
-    (x_train, _), (x_test, _) = mnist.load_data()
 
-    x_train = x_train[..., None]/255.0
-    x_test  = x_test[..., None]/255.0
+    normalize = transforms.Compose([transforms.ToTensor()])
+    train = torchvision.datasets.MNIST(root='./mnist', train=True, download=True, transform=normalize)
+    trainloader = torch.utils.data.DataLoader(train, batch_size=options.batch_size, shuffle=True, num_workers=2)
 
-    n = x_train.shape[0]
+    test = torchvision.datasets.MNIST(root='./mnist', train=False, download=True, transform=normalize)
+    testloader = torch.utils.data.DataLoader(test, batch_size=options.batch_size, shuffle=False, num_workers=2)
 
-    ### Build model
-    ## Build the model
+    ## Load the complete test set into a listr of batches
+    test_batches = [inputs for inputs, _ in testloader]
+    test_images = torch.cat(test_batches, dim=0).numpy()
 
-    input = Input(shape=(28, 28, 1))
-    eps = Input(shape=(options.latent_size, ))
+    ## Build model
 
+    # - channel sizes
     a, b, c = 8, 32, 128
 
-    h = Conv2D(a, (5, 5), activation='relu', padding='same')(input)
-    h = Conv2D(a, (5, 5), activation='relu', padding='same')(h)
-    h = Conv2D(a, (5, 5), activation='relu', padding='same')(h)
-    h = MaxPooling2D((2, 2), padding='same')(h)
+    encoder = Sequential(
+        Conv2d(1, a, (5, 5), padding=2), ReLU(),
+        Conv2d(a, a, (5, 5), padding=2), ReLU(),
+        Conv2d(a, a, (5, 5), padding=2), ReLU(),
+        MaxPool2d((2, 2)),
+        Conv2d(a, b, (5, 5), padding=2), ReLU(),
+        Conv2d(b, b, (5, 5), padding=2), ReLU(),
+        Conv2d(b, b, (5, 5), padding=2), ReLU(),
+        MaxPool2d((2, 2)),
+        Conv2d(b, c, (5, 5), padding=2), ReLU(),
+        Conv2d(c, c, (5, 5), padding=2), ReLU(),
+        Conv2d(c, c, (5, 5), padding=2), ReLU(),
+        MaxPool2d((2, 2)),
+        util.Flatten(),
+        Linear(1152, 2 * options.latent_size)
+    )
 
-    h = Conv2D(b, (5, 5), activation='relu', padding='same')(h)
-    h = Conv2D(b, (5, 5), activation='relu', padding='same')(h)
-    h = Conv2D(b, (5, 5), activation='relu', padding='same')(h)
-    h = MaxPooling2D((2, 2), padding='same')(h)
+    upmode = 'bilinear'
+    decoder = Sequential(
+        Linear(options.latent_size, 4 * 4 * c), ReLU(),
+        util.Reshape((c, 4, 4)),
+        ConvTranspose2d(c, c, (5, 5), padding=2), ReLU(),
+        ConvTranspose2d(c, c, (5, 5), padding=2), ReLU(),
+        ConvTranspose2d(c, b, (5, 5), padding=2), ReLU(),
+        Upsample(scale_factor=3, mode=upmode),
+        ConvTranspose2d(b, b, (5, 5), padding=2), ReLU(),
+        ConvTranspose2d(b, b, (5, 5), padding=2), ReLU(),
+        ConvTranspose2d(b, a, (5, 5), padding=2), ReLU(),
+        Upsample(scale_factor=2, mode=upmode),
+        ConvTranspose2d(a, a, (5, 5), padding=2), ReLU(),
+        ConvTranspose2d(a, a, (5, 5), padding=2), ReLU(),
+        ConvTranspose2d(a, 1, (5, 5), padding=0), Sigmoid()
+    )
 
-    h = Conv2D(c, (5, 5), activation='relu', padding='same')(h)
-    h = Conv2D(c, (5, 5), activation='relu', padding='same')(h)
-    h = Conv2D(c, (5, 5), activation='relu', padding='same')(h)
-    h = MaxPooling2D((2, 2), padding='same')(h)
+    if torch.cuda.is_available():
+        encoder.cuda()
+        decoder.cuda()
 
-    h = Flatten()(h) # size is 4*4*c
-
-    zmean = Dense(options.latent_size)(h)
-    zlsig = Dense(options.latent_size)(h)
-
-    kl = util.KLLayer()
-    [zmean, zlsig] = kl([zmean, zlsig])
-    zsample = util.Sample()([zmean, zlsig, eps])
-
-    h = Dense(4 * 4 * c, activation='relu')(zsample)
-    #  h = Dense(HEIGHT//(4*4*4) * WIDTH//(4*4*4) * 128, activation='relu')(zsample)
-
-    h = Reshape((4, 4, 128))(h)
-
-    h = Conv2DTranspose(c, (5, 5), activation='relu', padding='same')(h)
-    h = Conv2DTranspose(c, (5, 5), activation='relu', padding='same')(h)
-    h = Conv2DTranspose(c, (5, 5), activation='relu', padding='same')(h)
-    h = UpSampling2D((3, 3))(h)
-
-    h = Conv2DTranspose(b, (5, 5), activation='relu', padding='same')(h)
-    h = Conv2DTranspose(b, (5, 5), activation='relu', padding='same')(h)
-    h = Conv2DTranspose(b, (5, 5), activation='relu', padding='same')(h)
-    h = UpSampling2D((2, 2))(h)
-
-    h = Conv2DTranspose(a, (5, 5), activation='relu', padding='same')(h)
-    h = Conv2DTranspose(a, (5, 5), activation='relu', padding='same')(h)
-    output = Conv2DTranspose(1, (5, 5), activation='sigmoid')(h)
-
-    encoder = Model(input, [zmean, zlsig])
-    # decoder = Model(zsample, output)
-    auto = Model([input, eps], output)
-
-    opt = keras.optimizers.Adam(lr=options.lr)
-    auto.compile(optimizer=opt,
-                 loss=rec_loss)
+    params = list(encoder.parameters()) + list(decoder.parameters())
 
     ### Fit model
-    b = options.batch_size
     instances_seen = 0
 
-    for e in range(options.epochs):
-        for fr in tqdm.trange(0, n, b):
+    optimizer = Adam(params, lr=options.lr)
 
-            to = fr + b
-            if to > n:
-                to = n
+    for epoch in range(options.epochs):
+        for i, data in tqdm.tqdm(enumerate(trainloader, 0)):
 
-            batch = x_train[fr:to, ...]
-            bn = batch.shape[0]
-            eps = np.random.randn(bn, options.latent_size)
+            # get the inputs
+            inputs, labels = data
 
-            l = auto.train_on_batch([batch, eps], batch)
+            if torch.cuda.is_available():
+                inputs, labels = inputs.cuda(), labels.cuda()
 
-            instances_seen += batch.shape[0]
+            # wrap them in Variables
+            inputs, labels = Variable(inputs), Variable(labels)
 
-            if l.squeeze().ndim == 0:
-                tbw.add_scalar('score/sum', float(l), instances_seen)
-            else:
-                tbw.add_scalar('score/sum', float(np.sum(l) / len(l)), instances_seen)
+            optimizer.zero_grad()
+
+            # Forward pass
+            eps = torch.randn(options.batch_size, options.latent_size)
+
+            zcomb = encoder(inputs)
+            zmean, zlsig = zcomb[:, :options.latent_size], zcomb[:, options.latent_size:]
+
+            kl_loss = util.kl_loss(zmean, zlsig)
+
+            zsample = util.sample(zmean, zlsig, eps)
+
+            out = decoder(zsample)
+
+            rec_loss = binary_cross_entropy(out, inputs)
+
+            # Backward pass
+
+            loss = (rec_loss + kl_loss).mean()
+            loss.backward()
+
+            optimizer.step()
+
+            instances_seen += inputs.size(0)
+
+            tbw.add_scalar('score/kl', float(kl_loss.mean()), instances_seen)
+            tbw.add_scalar('score/rec', float(rec_loss.mean()), instances_seen)
+            tbw.add_scalar('score/loss', float(loss), instances_seen)
 
         ## Plot the latent space
-        if e % options.out_every == 0:
+        if epoch % options.out_every == 0:
             print('Plotting latent space.')
 
-            latents = encoder.predict(x_test)[0]
+            out_batches = [None] * test_batches
+            for i, batch in enumerate(test_batches):
+                if torch.cuda.is_available():
+                    batch = batch.cuda()
+                batch = Variable(batch)
+                out_batches[i] = encoder(batch)[:options.latent_size].data
+
+            latents = torch.cat(out_batches, dim=0)
+
             print('-- Computed latent vectors.')
 
             rng = np.max(latents[:, 0]) - np.min(latents[:, 0])
@@ -139,7 +160,7 @@ def go(options):
             print('-- range', rng)
 
             n_test = latents.shape[0]
-            util.plot(latents, x_test, size=rng/math.sqrt(n_test), filename='mnist.{:04}.pdf'.format(e), invert=True)
+            util.plot(latents.numpy(), test_images, size=rng/math.sqrt(n_test), filename='mnist.{:04}.pdf'.format(epoch), invert=True)
             print('-- finished plot')
 
 
@@ -156,7 +177,7 @@ if __name__ == "__main__":
     parser.add_argument("-o", "--out-every",
                         dest="out_every",
                         help="Output every x epochs.",
-                        default=10, type=int)
+                        default=1, type=int)
 
     parser.add_argument("-L", "--latent-size",
                         dest="latent_size",
@@ -176,12 +197,12 @@ if __name__ == "__main__":
     parser.add_argument("-T", "--tb-directory",
                         dest="tb_dir",
                         help="Tensorboard directory",
-                        default='./runs/lm', type=str)
+                        default='./runs/score/mnist', type=str)
 
     parser.add_argument("-r", "--random-seed",
                         dest="seed",
                         help="RNG seed. Negative for random. Chosen seed will be printed to sysout",
-                        default=1, type=int)
+                        default=-1, type=int)
 
 
     options = parser.parse_args()

@@ -1,9 +1,3 @@
-from keras.utils import multi_gpu_model
-
-import tensorflow as tf
-
-from sklearn import datasets
-
 from tqdm import tqdm
 import math, sys, os, random
 import numpy as np
@@ -15,14 +9,8 @@ import matplotlib.pyplot as plt
 
 from argparse import ArgumentParser
 
-from keras.layers import Input, Conv2D, Conv2DTranspose, Dense, Reshape, MaxPooling2D, UpSampling2D, Flatten, Cropping2D
-from keras.models import Model, Sequential
-from keras.engine.topology import Layer
-from keras.utils import to_categorical
-from keras import metrics
-import keras.optimizers
-from tensorflow.python.client import device_lib
-import keras.backend as K
+import torch
+from torch.nn import Conv2d, ConvTranspose2d, MaxPool2d, Linear, Sequential, ReLU, Upsample
 
 import numpy as np
 
@@ -49,11 +37,6 @@ def anneal(step, total, k=1.0, anneal_function='logistic'):
     elif anneal_function == 'linear':
         return min(1, step / total)
 
-def rec_loss(y_true, y_pred):
-    reshape = Reshape((-1, WIDTH * HEIGHT * 3))
-    y_true, y_pred = reshape(y_true), reshape(y_pred)
-
-    return K.sum(K.binary_crossentropy(y_true, y_pred), axis=-1)
 
 def go(options):
 
@@ -106,61 +89,44 @@ def go(options):
 
     ## Build the model
 
-    input = Input(shape=(HEIGHT, WIDTH, 3))
-    eps   = Input(shape=(options.latent_size,))
-
+    #- channel sizes
     a, b, c = 8, 32, 128
 
-    h = Conv2D(a, (5, 5), activation='relu', padding='same')(input)
-    h = Conv2D(a, (5, 5), activation='relu', padding='same')(h)
-    h = Conv2D(a, (5, 5), activation='relu', padding='same')(h)
-    h = MaxPooling2D((4, 4), padding='same')(h)
+    encoder = Sequential([
+        Conv2d(3, a, (5, 5), padding=2), ReLU(),
+        Conv2d(a, a, (5, 5), padding=2), ReLU(),
+        Conv2d(a, a, (5, 5), padding=2), ReLU(),
+        MaxPool2d((4,4)),
+        Conv2d(a, b, (5, 5), padding=2), ReLU(),
+        Conv2d(b, b, (5, 5), padding=2), ReLU(),
+        Conv2d(b, b, (5, 5), padding=2), ReLU(),
+        MaxPool2d((4, 4)),
+        Conv2d(b, c, (5, 5), padding=2), ReLU(),
+        Conv2d(c, c, (5, 5), padding=2), ReLU(),
+        Conv2d(c, c, (5, 5), padding=2), ReLU(),
+        MaxPool2d((4, 4)),
+        util.Flatten(),
+        Linear(-1, 2 * options.latent_size)
+    ])
 
-    h = Conv2D(b, (5, 5), activation='relu', padding='same')(h)
-    h = Conv2D(b, (5, 5), activation='relu', padding='same')(h)
-    h = Conv2D(b, (5, 5), activation='relu', padding='same')(h)
-    h = MaxPooling2D((4, 4), padding='same')(h)
 
-    h = Conv2D(c, (5, 5), activation='relu', padding='same')(h)
-    h = Conv2D(c, (5, 5), activation='relu', padding='same')(h)
-    h = Conv2D(c, (5, 5), activation='relu', padding='same')(h)
-    h = MaxPooling2D((4, 4), padding='same')(h)
-
-    h = Flatten()(h)
-    zmean = Dense(options.latent_size)(h)
-    zlsig = Dense(options.latent_size)(h)
-
-    kl = util.KLLayer()
-    zmean, zlsig = kl([zmean, zlsig])
-    zsample = util.Sample()([zmean, zlsig, eps])
-
-    h = Dense(5 * 4 * 128, activation='relu')(zsample)
-    #  h = Dense(HEIGHT//(4*4*4) * WIDTH//(4*4*4) * 128, activation='relu')(zsample)
-
-    h = Reshape((4, 5, 128))(h)
-    h = UpSampling2D((4, 4))(h)
-
-    h = Conv2DTranspose(c, (5, 5), activation='relu', padding='same')(h)
-    h = Conv2DTranspose(c, (5, 5), activation='relu', padding='same')(h)
-    h = Conv2DTranspose(c, (5, 5), activation='relu', padding='same')(h)
-    h = UpSampling2D((4, 4))(h)
-
-    h = Conv2DTranspose(b, (5, 5), activation='relu', padding='same')(h)
-    h = Conv2DTranspose(b, (5, 5), activation='relu', padding='same')(h)
-    h = Conv2DTranspose(b, (5, 5), activation='relu', padding='same')(h)
-    h = UpSampling2D((4, 4))(h)
-
-    h = Conv2DTranspose(a, (5, 5), activation='relu', padding='same')(h)
-    h = Conv2DTranspose(a, (5, 5), activation='relu', padding='same')(h)
-    output = Conv2DTranspose(3, (5, 5), activation='sigmoid', padding='same')(h)
-
-    encoder = Model(input, [zmean, zlsig])
-    # decoder = Model(zsample, output)
-    auto = Model([input, eps], output)
-
-    opt = keras.optimizers.Adam(lr=options.lr)
-    auto.compile(optimizer=opt,
-                 loss=rec_loss)
+    upmode = 'bilinear'
+    decoder = Sequential([
+        Linear(options.latent_size, 5 * 4 * c), ReLU(),
+        util.Reshape((4, 5, c)),
+        Upsample(scale_factor=4, mode=upmode),
+        ConvTranspose2d(c, c, (5, 5), padding=2), ReLU(),
+        ConvTranspose2d(c, c, (5, 5), padding=2), ReLU(),
+        ConvTranspose2d(c, c, (5, 5), padding=2), ReLU(),
+        Upsample(scale_factor=4, mode=upmode),
+        ConvTranspose2d(b, b, (5, 5), padding=2), ReLU(),
+        ConvTranspose2d(b, b, (5, 5), padding=2), ReLU(),
+        ConvTranspose2d(b, b, (5, 5), padding=2), ReLU(),
+        Upsample(scale_factor=4, mode=upmode),
+        ConvTranspose2d(a, a, (5, 5), padding=2), ReLU(),
+        ConvTranspose2d(a, a, (5, 5), padding=2), ReLU(),
+        ConvTranspose2d(a, 3, (5, 5), padding=2), ReLU(),
+    ])
 
     ## Training loop
 
@@ -199,7 +165,7 @@ def go(options):
         print('Batch size:', batch.shape); t0 = time.time()
 
         eps = np.random.randn(batch.shape[0], options.latent_size)
-        l = auto.fit([batch, eps], batch, epochs=1, validation_split=1/10)
+        l = auto.fit([batch, eps], batch, epochs=1, validation_split=1/10, shuffle=True)
         print('Batch trained ({} s).'.format(time.time() - t0))
 
         instances_seen += batch.shape[0]
