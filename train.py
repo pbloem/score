@@ -10,7 +10,10 @@ import matplotlib.pyplot as plt
 from argparse import ArgumentParser
 
 import torch
-from torch.nn import Conv2d, ConvTranspose2d, MaxPool2d, Linear, Sequential, ReLU, Upsample
+from torch.optim import Adam
+from torch.nn.functional import binary_cross_entropy
+from torch.nn import Conv2d, ConvTranspose2d, MaxPool2d, Linear, Sequential, ReLU, Sigmoid, Upsample
+from torch.autograd import Variable
 
 import numpy as np
 
@@ -36,7 +39,6 @@ def anneal(step, total, k=1.0, anneal_function='logistic'):
         return float(1 / (1 + np.exp(-k * (step - total / 2))))
     elif anneal_function == 'linear':
         return min(1, step / total)
-
 
 def go(options):
 
@@ -92,7 +94,7 @@ def go(options):
     #- channel sizes
     a, b, c = 8, 32, 128
 
-    encoder = Sequential([
+    encoder = Sequential(
         Conv2d(3, a, (5, 5), padding=2), ReLU(),
         Conv2d(a, a, (5, 5), padding=2), ReLU(),
         Conv2d(a, a, (5, 5), padding=2), ReLU(),
@@ -106,14 +108,14 @@ def go(options):
         Conv2d(c, c, (5, 5), padding=2), ReLU(),
         MaxPool2d((4, 4)),
         util.Flatten(),
-        Linear(-1, 2 * options.latent_size)
-    ])
+        Linear((WIDTH/64) * (HEIGHT/64) * c, 2 * options.latent_size)
+    )
 
 
     upmode = 'bilinear'
-    decoder = Sequential([
+    decoder = Sequential(
         Linear(options.latent_size, 5 * 4 * c), ReLU(),
-        util.Reshape((4, 5, c)),
+        util.Reshape((c, 4, 5)),
         Upsample(scale_factor=4, mode=upmode),
         ConvTranspose2d(c, c, (5, 5), padding=2), ReLU(),
         ConvTranspose2d(c, c, (5, 5), padding=2), ReLU(),
@@ -125,22 +127,31 @@ def go(options):
         Upsample(scale_factor=4, mode=upmode),
         ConvTranspose2d(a, a, (5, 5), padding=2), ReLU(),
         ConvTranspose2d(a, a, (5, 5), padding=2), ReLU(),
-        ConvTranspose2d(a, 3, (5, 5), padding=2), ReLU(),
-    ])
+        ConvTranspose2d(a, 3, (5, 5), padding=2), Sigmoid()
+    )
+
+    if torch.cuda.is_available():
+        encoder.cuda()
+        decoder.cuda()
 
     ## Training loop
+
+    params = list(encoder.parameters()) + list(decoder.parameters())
+    optimizer = Adam(params, lr=options.lr)
+
+    ### Fit model
+    instances_seen = 0
 
     # Test images to plot
     images = np.load(options.sample_file)['images']
 
-    instances_seen = 0
     per_video = math.ceil(options.epoch_size / len(files))
     total = len(files) * per_video
 
     for ep in tqdm.trange(options.epochs):
-        print('Sampling batch'); t0 = time.time()
+        print('Sampling superbatch'); t0 = time.time()
 
-        batch = np.zeros((total, HEIGHT, WIDTH, 3))
+        sbatch = torch.zeros(total, HEIGHT, WIDTH, 3)
         i = 0
 
         for file, length in zip(files, lengths):
@@ -156,17 +167,56 @@ def go(options):
 
                         frame = imresize(frame, newsize)/255
 
-                        batch[i] = frame
+                        sbatch[i] = torch.from_numpy(frame)
 
                 except Exception as e:
                     pass
 
-        print('Batch sampled ({} s).'.format(time.time() - t0))
-        print('Batch size:', batch.shape); t0 = time.time()
+        print('Superbatch sampled ({} s).'.format(time.time() - t0))
+        print('Superbatch size:', sbatch.size()); t0 = time.time()
 
-        eps = np.random.randn(batch.shape[0], options.latent_size)
-        l = auto.fit([batch, eps], batch, epochs=1, validation_split=1/10, shuffle=True)
-        print('Batch trained ({} s).'.format(time.time() - t0))
+        for fr in tqdm.trange(0, sbatch.size(0), options.batch_size):
+            to = fr + options.batch_size
+            if to > sbatch.size(0):
+                to = sbatch.size(0)
+
+            batch = sbatch[fr:to]
+
+            if torch.cuda.is_available():
+                batch = batch.cuda()
+
+            batch = Variable(batch)
+
+            optimizer.zero_grad()
+
+            # Forward pass
+
+            zcomb = encoder(batch)
+            zmean, zlsig = zcomb[:, :options.latent_size], zcomb[:, options.latent_size:]
+
+            kl_loss = util.kl_loss(zmean, zlsig)
+
+            zsample = util.sample(zmean, zlsig)
+
+            out = decoder(zsample)
+
+            rec_loss = binary_cross_entropy(out, batch, reduce=False)
+            print(rec_loss.shape)
+
+            # Backward pass
+
+            loss = (rec_loss + kl_loss).mean()
+            loss.backward()
+
+            optimizer.step()
+
+            instances_seen += batch.size(0)
+
+            tbw.add_scalar('score/kl', float(kl_loss.mean()), instances_seen)
+            tbw.add_scalar('score/rec', float(rec_loss.mean()), instances_seen)
+            tbw.add_scalar('score/loss', float(loss), instances_seen)
+
+        print('Superatch trained ({} s).'.format(time.time() - t0))
 
         instances_seen += batch.shape[0]
 
@@ -184,19 +234,29 @@ def go(options):
         if options.sample_file is not None:
             print('Plotting latent space.')
 
-            latents = encoder.predict(images)[0]
+            out_batches = [None] * len(test_batches)
+            for i, batch in enumerate(test_batches):
+                if torch.cuda.is_available():
+                    batch = batch.cuda()
+                batch = Variable(batch)
+                out_batches[i] = encoder(batch).data[:, :options.latent_size]
+
+            latents = torch.cat(out_batches, dim=0)
+            print(latents.size(0), test_images.shape[0])
+
             print('-- Computed latent vectors.')
 
-            rng = np.max(latents[:, 0]) - np.min(latents[:, 0])
+            rng = float(torch.max(latents[:, 0]) - torch.min(latents[:, 0]))
+
+            print('-- L', latents[:10, :])
+            print('-- range', rng)
 
             n_test = latents.shape[0]
+            util.plot(latents.cpu().numpy(), test_images, size=rng / math.sqrt(n_test),
+                      filename='mnist.{:04}.pdf'.format(epoch), invert=True)
 
-            print('-- L', latents[:10,:])
-            print('-- range', rng)
-            print('-- plot size', rng/math.sqrt(n_test))
 
-            util.plot(latents, images, size=rng/math.sqrt(n_test), filename='score.{:04}.pdf'.format(ep))
-
+            print('-- finished plot')
     for file in files:
         os.remove(file)
 

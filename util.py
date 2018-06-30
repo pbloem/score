@@ -19,7 +19,7 @@ from scipy.stats import norm
 def kl_loss(zmean, zlsig):
     b, l = zmean.size()
 
-    kl = -0.5 * torch.sum(1 + zlsig - zmean.pow(2) - zlsig.exp(), dim=1)
+    kl = 0.5 * torch.sum(zlsig.exp() - zlsig + zmean.pow(2) - 1, dim=1)
 
     assert kl.size() == (b,)
 

@@ -10,7 +10,7 @@ from argparse import ArgumentParser
 import pandas as pd
 import wget
 import numpy as np
-import tqdm, cv2
+import tqdm
 import skvideo.io
 
 from scipy.misc import imresize, imsave

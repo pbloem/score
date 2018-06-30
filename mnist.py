@@ -104,6 +104,8 @@ def go(options):
             # get the inputs
             inputs, labels = data
 
+            b, c, w, h = inputs.size()
+
             if torch.cuda.is_available():
                 inputs, labels = inputs.cuda(), labels.cuda()
 
@@ -123,7 +125,7 @@ def go(options):
 
             out = decoder(zsample)
 
-            rec_loss = binary_cross_entropy(out, inputs)
+            rec_loss = binary_cross_entropy(out, inputs, reduce=False).view(b, -1).sum(dim=1)
 
             # Backward pass
 
