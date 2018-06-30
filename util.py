@@ -29,7 +29,7 @@ def sample(zmean, zlsig, eps=None):
     b, l = zmean.size()
 
     if eps is None:
-        eps = torch.random.randn(b, l)
+        eps = torch.randn(b, l)
         if torch.cuda.is_available():
             eps = eps.cuda()
         eps = Variable(eps)

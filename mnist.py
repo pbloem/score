@@ -113,14 +113,13 @@ def go(options):
             optimizer.zero_grad()
 
             # Forward pass
-            eps = torch.randn(options.batch_size, options.latent_size)
 
             zcomb = encoder(inputs)
             zmean, zlsig = zcomb[:, :options.latent_size], zcomb[:, options.latent_size:]
 
             kl_loss = util.kl_loss(zmean, zlsig)
 
-            zsample = util.sample(zmean, zlsig, eps)
+            zsample = util.sample(zmean, zlsig)
 
             out = decoder(zsample)
 
