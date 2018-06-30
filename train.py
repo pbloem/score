@@ -144,7 +144,7 @@ def go(options):
     instances_seen = 0
 
     # Test images to plot
-    images = torch.from_numpy(np.load(options.sample_file)['images'])
+    images = torch.from_numpy(np.load(options.sample_file)['images']).permute(0, 3, 1, 2)
 
     per_video = math.ceil(options.epoch_size / len(files))
     total = len(files) * per_video
