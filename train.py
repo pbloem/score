@@ -261,7 +261,7 @@ def go(options):
             print('-- range', rng)
 
             n_test = latents.shape[0]
-            util.plot(latents.cpu().numpy(), images.numpy(), size=rng / math.sqrt(n_test),
+            util.plot(latents.cpu().numpy(), images.permute(0, 2, 3, 1).numpy(), size=rng / math.sqrt(n_test),
                       filename='score.{:04}.pdf'.format(ep), invert=True)
 
             print('-- finished plot')
