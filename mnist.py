@@ -160,7 +160,7 @@ def go(options):
             print('-- range', rng)
 
             n_test = latents.shape[0]
-            util.plot(latents.numpy(), test_images, size=rng/math.sqrt(n_test), filename='mnist.{:04}.pdf'.format(epoch), invert=True)
+            util.plot(latents.cpu().numpy(), test_images, size=rng/math.sqrt(n_test), filename='mnist.{:04}.pdf'.format(epoch), invert=True)
             print('-- finished plot')
 
 
