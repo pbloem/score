@@ -321,7 +321,7 @@ if __name__ == "__main__":
     parser.add_argument("-V", "--video-urls",
                         dest="video_urls",
                         help="CSV file with the video metadata",
-                        default='./openbeelden.csv', type=str)
+                        default='./openbeelden.clean.csv', type=str)
 
     parser.add_argument("-S", "--sample-file",
                         dest="sample_file",
