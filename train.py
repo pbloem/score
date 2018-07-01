@@ -15,6 +15,7 @@ from torch.nn.functional import binary_cross_entropy
 from torch.nn import Conv2d, ConvTranspose2d, MaxPool2d, Linear, Sequential, ReLU, Sigmoid, Upsample
 from torch.autograd import Variable
 
+
 import numpy as np
 
 from tensorboardX import SummaryWriter
@@ -74,7 +75,11 @@ def go(options):
         # - download videos. One for each instance in the batch.
 
         print('Downloading video', url)
-        file = wget.download(url, out=options.data_dir)
+        try:
+            file = wget.download(url, out=options.data_dir)
+        except Exception as e:
+            print('Could not download', url, e)
+            continue
 
         gen = skvideo.io.vreader(file)
 
@@ -86,7 +91,7 @@ def go(options):
             files.append(file)
             lengths.append(length)
 
-    print('All {} videos downloaded ({} s)'.format(len(files), time.time()-t0))
+    print('{} videos downloaded ({} s)'.format(len(files), time.time()-t0))
     print('Total number of frames in data:', sum(lengths))
 
     ## Build the model
