@@ -78,14 +78,18 @@ def go(options):
         try:
             file = wget.download(url, out=options.data_dir)
         except Exception as e:
-            print('Could not download', url, e)
+            print('*** Could not download', url, e)
             continue
 
-        gen = skvideo.io.vreader(file)
+        try:
+            gen = skvideo.io.vreader(file)
 
-        length = 0
-        for _ in gen:
-            length += 1
+            length = 0
+            for _ in gen:
+                length += 1
+        except Exception as e:
+            print('*** Could not read video file ', url, e)
+            continue
 
         if length > 100:
             files.append(file)
