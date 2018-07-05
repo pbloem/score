@@ -120,7 +120,6 @@ def go(options):
         Linear((WIDTH/64) * (HEIGHT/64) * c, 2 * options.latent_size)
     )
 
-
     upmode = 'bilinear'
     decoder = Sequential(
         Linear(options.latent_size, 5 * 4 * c), ReLU(),
@@ -155,7 +154,7 @@ def go(options):
     # Test images to plot
     images = torch.from_numpy(np.load(options.sample_file)['images']).permute(0, 3, 1, 2)
 
-    per_video = math.ceil(options.epoch_size / len(files))
+    per_video = math.ceil(options.epoch_videos / len(files))
     total = len(files) * per_video
 
     for ep in tqdm.trange(options.epochs):
@@ -164,7 +163,11 @@ def go(options):
         sbatch = torch.zeros(total, 3, HEIGHT, WIDTH)
         i = 0
 
-        for file, length in zip(files, lengths):
+        video_sample = random.sample(range(len(files)), options.epoch_videos)
+        subfiles   = [files[i] for i in video_sample]
+        sublengths = [lengths[i] for i in video_sample]
+
+        for file, length in zip(subfiles, sublengths):
 
             gen = skvideo.io.vreader(file)
             frames = random.sample(range(length), per_video)
@@ -182,47 +185,48 @@ def go(options):
         print('-- {} frames added, to tensor of length {}'.format(i, sbatch.size(0)))
         print('Superbatch size:', sbatch.size()); t0 = time.time()
 
-        for fr in tqdm.trange(0, sbatch.size(0), options.batch_size):
-            to = fr + options.batch_size
-            if to > sbatch.size(0):
-                to = sbatch.size(0)
+        for _ in range(options.repeats):
+            for fr in tqdm.trange(0, sbatch.size(0), options.batch_size):
+                to = fr + options.batch_size
+                if to > sbatch.size(0):
+                    to = sbatch.size(0)
 
-            batch = sbatch[fr:to]
+                batch = sbatch[fr:to]
 
-            if torch.cuda.is_available():
-                batch = batch.cuda()
+                if torch.cuda.is_available():
+                    batch = batch.cuda()
 
-            batch = Variable(batch)
+                batch = Variable(batch)
 
-            optimizer.zero_grad()
+                optimizer.zero_grad()
 
-            # Forward pass
+                # Forward pass
 
-            b, c, h, w = batch.size()
+                b, c, h, w = batch.size()
 
-            zcomb = encoder(batch)
-            zmean, zlsig = zcomb[:, :options.latent_size], zcomb[:, options.latent_size:]
+                zcomb = encoder(batch)
+                zmean, zlsig = zcomb[:, :options.latent_size], zcomb[:, options.latent_size:]
 
-            kl_loss = util.kl_loss(zmean, zlsig)
+                kl_loss = util.kl_loss(zmean, zlsig)
 
-            zsample = util.sample(zmean, zlsig)
+                zsample = util.sample(zmean, zlsig)
 
-            out = decoder(zsample)
+                out = decoder(zsample)
 
-            rec_loss = binary_cross_entropy(out, batch, reduce=False).view(b, -1).sum(dim=1)
+                rec_loss = binary_cross_entropy(out, batch, reduce=False).view(b, -1).sum(dim=1)
 
-            # Backward pass
+                # Backward pass
 
-            loss = (rec_loss + kl_loss).mean()
-            loss.backward()
+                loss = (rec_loss + kl_loss).mean()
+                loss.backward()
 
-            optimizer.step()
+                optimizer.step()
 
-            instances_seen += batch.size(0)
+                instances_seen += batch.size(0)
 
-            tbw.add_scalar('score/kl', float(kl_loss.mean()), instances_seen)
-            tbw.add_scalar('score/rec', float(rec_loss.mean()), instances_seen)
-            tbw.add_scalar('score/loss', float(loss), instances_seen)
+                tbw.add_scalar('score/kl', float(kl_loss.mean()), instances_seen)
+                tbw.add_scalar('score/rec', float(rec_loss.mean()), instances_seen)
+                tbw.add_scalar('score/loss', float(loss), instances_seen)
 
         print('Superbatch trained ({} s).'.format(time.time() - t0))
 
@@ -291,6 +295,16 @@ if __name__ == "__main__":
                         dest="epoch_size",
                         help="How many frames to sample for one 'epoch'.",
                         default=10000, type=int)
+
+    parser.add_argument("-W", "--epoch-videos",
+                        dest="epoch_videos",
+                        help="From how many videos the epoch frames are sampled.",
+                        default=25, type=int)
+
+    parser.add_argument("-R", "--repeats",
+                        dest="repeats",
+                        help="Number of repeats before sampling a new superbatch.",
+                        default=5, type=int)
 
     parser.add_argument("-L", "--latent-size",
                         dest="latent_size",
