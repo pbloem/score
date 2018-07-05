@@ -15,6 +15,8 @@ from torch.nn.functional import binary_cross_entropy
 from torch.nn import Conv2d, ConvTranspose2d, MaxPool2d, Linear, Sequential, ReLU, Sigmoid, Upsample
 from torch.autograd import Variable
 
+from torch.utils.data import TensorDataset, DataLoader
+
 
 import numpy as np
 
@@ -181,21 +183,19 @@ def go(options):
                     sbatch[i] = torch.from_numpy(frame).permute(2, 0, 1)
                     i = i + 1
 
+        dataset = TensorDataset(sbatch)
+        loader  = DataLoader(dataset, batch_size=options.batch_size, shuffle=True)
+
         print('Superbatch sampled ({} s).'.format(time.time() - t0))
         print('-- {} frames added, to tensor of length {}'.format(i, sbatch.size(0)))
         print('Superbatch size:', sbatch.size()); t0 = time.time()
 
         for _ in range(options.repeats):
-            for fr in tqdm.trange(0, sbatch.size(0), options.batch_size):
-                to = fr + options.batch_size
-                if to > sbatch.size(0):
-                    to = sbatch.size(0)
+            for (batch,) in tqdm.tqdm(loader):
 
-                batch = sbatch[fr:to]
 
                 if torch.cuda.is_available():
                     batch = batch.cuda()
-
                 batch = Variable(batch)
 
                 optimizer.zero_grad()
