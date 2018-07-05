@@ -154,8 +154,8 @@ def go(options):
     # Test images to plot
     images = torch.from_numpy(np.load(options.sample_file)['images']).permute(0, 3, 1, 2)
 
-    per_video = math.ceil(options.epoch_videos / len(files))
-    total = len(files) * per_video
+    per_video = math.ceil(options.epoch_size / options.epoch_videos)
+    total = options.epoch_videos * per_video
 
     for ep in tqdm.trange(options.epochs):
         print('Sampling superbatch'); t0 = time.time()
