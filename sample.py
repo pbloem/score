@@ -95,7 +95,7 @@ def go(options):
     print('Number of download failures', failed_downloads)
     print('Number of file read failures', failed_reads)
 
-    np.savez_compressed('sample.npz', images=result)
+    np.savez_compressed(options.result_dir + os.sep + 'sample.npz', images=result)
 
 if __name__ == "__main__":
 
@@ -136,6 +136,11 @@ if __name__ == "__main__":
                         dest="data_dir",
                         help="Data directory",
                         default='./data', type=str)
+
+    parser.add_argument("-R", "--result-directory",
+                        dest="result_dir",
+                        help="Result directory",
+                        default='.', type=str)
 
     options = parser.parse_args()
 
