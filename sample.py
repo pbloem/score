@@ -16,6 +16,7 @@ import skvideo.io
 from scipy.misc import imresize, imsave
 
 def go(options):
+
     """Samples a small number of random frames from a large number of random videos"""
 
     # Set random or det. seed
@@ -31,12 +32,22 @@ def go(options):
     df = pd.read_csv(options.video_urls, header=None)
     l = len(df)
 
-    rand_indices = random.sample(range(l), options.num_videos)
-    urls = df.iloc[rand_indices, 2]
+    if options.num_videos is not None:
 
-    ttl = options.num_videos * options.num_frames
+        rand_indices = random.sample(range(l), options.num_videos)
+        urls = df.iloc[rand_indices, 2]
+        num_videos = options.num_videos
+
+    else:
+
+        urls = df.iloc[:, 2]
+        num_videos = len(df)
+
+    ttl = num_videos * options.num_frames
     result = np.zeros(shape=(ttl, options.height, options.width, 3))
 
+    failed_downloads = 0
+    failed_reads = 0
     i = 0
     for url in tqdm.tqdm(urls):
         #- download videos. One for each instance in the batch.
@@ -46,8 +57,8 @@ def go(options):
             file = wget.download(url, out=options.data_dir)
         except Exception as e:
             print('*** Could not download', url, e)
+            failed_downloads += 1
             continue
-
 
         try:
             gen = skvideo.io.vreader(file)
@@ -58,6 +69,7 @@ def go(options):
 
         except Exception as e:
             print('*** Could not read video file ', url, e)
+            failed_reads += 1
             continue
 
         print('\nlength', length)
@@ -67,16 +79,21 @@ def go(options):
         frames = random.sample(range(length), options.num_frames)
 
         for f, frame in enumerate(gen):
-                if f in frames:
+            if f in frames:
 
-                    newsize = (options.height, options.width)
-                    frame = imresize(frame, newsize)/255
+                newsize = (options.height, options.width)
+                frame = imresize(frame, newsize)/255
 
-                    result[i, ...] = frame
-                    i += 1
-                f += 1
+                result[i, ...] = frame
+                i += 1
 
-        # os.remove(file)
+        os.remove(file)
+
+    result = result[:i+1, ...]
+
+    print('Sampling finished. Shape of final dataset:', result.shape)
+    print('Number of download failures', failed_downloads)
+    print('Number of file read failures', failed_reads)
 
     np.savez_compressed('sample.npz', images=result)
 
@@ -88,7 +105,7 @@ if __name__ == "__main__":
     parser.add_argument("-v", "--num-vids",
                         dest="num_videos",
                         help="Number of of videos to download.",
-                        default=1000, type=int)
+                        default=None, type=int)
 
     parser.add_argument("-f", "--frames",
                         dest="num_frames",
