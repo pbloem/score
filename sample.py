@@ -27,8 +27,6 @@ def go(options):
     np.random.seed(seed)
     print('random seed: ', seed)
 
-    ## Training loop
-
     #- data urls
     df = pd.read_csv(options.video_urls, header=None)
     l = len(df)
@@ -44,21 +42,32 @@ def go(options):
         #- download videos. One for each instance in the batch.
 
         print('Downloading video', url)
-        file = wget.download(url, out=options.data_dir)
+        try:
+            file = wget.download(url, out=options.data_dir)
+        except Exception as e:
+            print('*** Could not download', url, e)
+            continue
 
-        gen = skvideo.io.vreader(file)
 
-        length = 0
-        for _ in gen:
-            length += 1
+        try:
+            gen = skvideo.io.vreader(file)
+
+            length = 0
+            for _ in gen:
+                length += 1
+
+        except Exception as e:
+            print('*** Could not read video file ', url, e)
+            continue
 
         print('\nlength', length)
+
         gen = skvideo.io.vreader(file, num_frames=length)
 
         frames = random.sample(range(length), options.num_frames)
 
         for f, frame in enumerate(gen):
-                if f in  frames:
+                if f in frames:
 
                     newsize = (options.height, options.width)
                     frame = imresize(frame, newsize)/255
@@ -69,7 +78,7 @@ def go(options):
 
         # os.remove(file)
 
-    # np.savez_compressed('sample.npz', images=result)
+    np.savez_compressed('sample.npz', images=result)
 
 if __name__ == "__main__":
 
