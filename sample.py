@@ -78,10 +78,13 @@ def go(options):
 
         gen = skvideo.io.vreader(file, num_frames=length)
 
-        frames = random.sample(range(length), options.num_frames)
+        if length > options.numframes:
+            frames = random.sample(range(length), options.num_frames)
+        else:
+            frames = None
 
         for f, frame in enumerate(gen):
-            if f in frames:
+            if frames is None or f in frames:
 
                 newsize = (options.height, options.width)
                 frame = imresize(frame, newsize)/255
