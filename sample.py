@@ -10,12 +10,14 @@ from argparse import ArgumentParser
 import pandas as pd
 import wget
 import numpy as np
-import tqdm
+import tqdm, util
 import skvideo.io
 
 from scipy.misc import imresize, imsave
 
 def go(options):
+
+    util.ensure(options.result_dir)
 
     """Samples a small number of random frames from a large number of random videos"""
 
@@ -142,7 +144,7 @@ if __name__ == "__main__":
     parser.add_argument("-R", "--result-directory",
                         dest="result_dir",
                         help="Result directory",
-                        default='.', type=str)
+                        default='./result', type=str)
 
     parser.add_argument("-N", "--result-filename",
                         dest="result_name",
