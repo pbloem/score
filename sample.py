@@ -44,7 +44,7 @@ def go(options):
         num_videos = len(df)
 
     ttl = num_videos * options.num_frames
-    result = np.zeros(shape=(ttl, options.height, options.width, 3))
+    # result = np.zeros(shape=(ttl, options.height, options.width, 3))
 
     failed_downloads = 0
     failed_reads = 0
@@ -84,18 +84,20 @@ def go(options):
                 newsize = (options.height, options.width)
                 frame = imresize(frame, newsize)/255
 
-                result[i, ...] = frame
+                imsave(options.result_dir + os.sep +'{:07}.jpg'.format(i), frame)
+
+                # result[i, ...] = frame
                 i += 1
 
         os.remove(file)
 
-    result = result[:i+1, ...]
+    # result = result[:i+1, ...]
 
-    print('Sampling finished. Shape of final dataset:', result.shape)
+    print('Sampling finished. Number of frames sampled: ', i)
     print('Number of download failures', failed_downloads)
     print('Number of file read failures', failed_reads)
 
-    np.savez_compressed(options.result_dir + os.sep + options.result_name, images=result)
+    # np.savez_compressed(options.result_dir + os.sep + options.result_name, images=result)
 
 if __name__ == "__main__":
 
@@ -130,7 +132,7 @@ if __name__ == "__main__":
     parser.add_argument("-V", "--video-urls",
                         dest="video_urls",
                         help="CSV file with the video metadata",
-                        default='./openbeelden.csv', type=str)
+                        default='./openbeelden.clean.csv', type=str)
 
     parser.add_argument("-D", "--data-directory",
                         dest="data_dir",
