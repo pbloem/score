@@ -78,7 +78,7 @@ def go(options):
 
         gen = skvideo.io.vreader(file, num_frames=length)
 
-        if length > options.numframes:
+        if length > options.num_frames:
             frames = random.sample(range(length), options.num_frames)
         else:
             frames = None
