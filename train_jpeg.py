@@ -128,7 +128,7 @@ def go(options):
     # Test images to plot
     images = torch.from_numpy(np.load(options.sample_file)['images']).permute(0, 3, 1, 2)
 
-    for e in tqdm.trange(options.epochs):
+    for e in range(options.epochs):
         for batch, _ in tqdm.tqdm(dataloader):
 
             if torch.cuda.is_available():
