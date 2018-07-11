@@ -52,9 +52,7 @@ def plot(latents, images, size=0.00001, filename='latent_space.pdf', invert=Fals
 
     mn, mx = np.min(latents), np.max(latents)
 
-    print('!!!', images.shape)
-
-    n, c, h, w = images.shape
+    n, h, w, c = images.shape
 
     aspect = h/w
 
