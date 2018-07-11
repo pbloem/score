@@ -60,8 +60,6 @@ def go(options):
     np.random.seed(seed)
     print('random seed: ', seed)
 
-    util.ensure(options.data_dir)
-
     ## Load the data
     transform = transforms.Compose([transforms.ToTensor()])
 
@@ -167,45 +165,48 @@ def go(options):
             tbw.add_scalar('score/rec', float(rec_loss.mean()), instances_seen)
             tbw.add_scalar('score/loss', float(loss), instances_seen)
 
+        ## Plot the latent space
+        if options.sample_file is not None and e % options.out_every == 0:
+
             if options.model_dir is not None:
-                torch.save(encoder.state_dict(), options.model_dir + '/encoder.{}.{:.4}.model'.format(e, float(loss) ))
-                torch.save(decoder.state_dict(), options.model_dir + '/decoder.{}.{:.4}.model'.format(e, float(loss) ))
+                torch.save(encoder.state_dict(),
+                           options.model_dir + '/encoder.{}.{:.4}.model'.format(e, float(loss)))
+                torch.save(decoder.state_dict(),
+                           options.model_dir + '/decoder.{}.{:.4}.model'.format(e, float(loss)))
 
-            ## Plot the latent space
-            if options.sample_file is not None:
-                print('Plotting latent space.')
+            print('Plotting latent space.')
 
-                l = images.size(0)
-                b = options.batch_size
+            l = images.size(0)
+            b = options.batch_size
 
-                out_batches = []
+            out_batches = []
 
-                for fr in range(0, l, b):
-                    to = min(fr + b, l)
+            for fr in range(0, l, b):
+                to = min(fr + b, l)
 
-                    batch = images[fr:to]
+                batch = images[fr:to]
 
-                    if torch.cuda.is_available():
-                        batch = batch.cuda()
-                    batch = Variable(batch)
-                    out = encoder(batch.float()).data[:, :options.latent_size]
+                if torch.cuda.is_available():
+                    batch = batch.cuda()
+                batch = Variable(batch)
+                out = encoder(batch.float()).data[:, :options.latent_size]
 
-                    out_batches.append(out)
+                out_batches.append(out)
 
-                latents = torch.cat(out_batches, dim=0)
+            latents = torch.cat(out_batches, dim=0)
 
-                print('-- Computed latent vectors.')
+            print('-- Computed latent vectors.')
 
-                rng = float(torch.max(latents[:, 0]) - torch.min(latents[:, 0]))
+            rng = float(torch.max(latents[:, 0]) - torch.min(latents[:, 0]))
 
-                print('-- L', latents[:10, :])
-                print('-- range', rng)
+            print('-- L', latents[:10, :])
+            print('-- range', rng)
 
-                n_test = latents.shape[0]
-                util.plot(latents.cpu().numpy(), images.permute(0, 2, 3, 1).numpy(), size=rng / math.sqrt(n_test),
-                          filename='score.{:04}.pdf'.format(e), invert=True)
+            n_test = latents.shape[0]
+            util.plot(latents.cpu().numpy(), images.permute(0, 2, 3, 1).numpy(), size=rng / math.sqrt(n_test),
+                      filename='score.{:04}.pdf'.format(e), invert=True)
 
-                print('-- finished plot')
+            print('-- finished plot')
 
 if __name__ == "__main__":
 
@@ -216,6 +217,11 @@ if __name__ == "__main__":
                         dest="epochs",
                         help="Number of 'epochs'.",
                         default=50, type=int)
+
+    parser.add_argument("-o", "--out-every",
+                        dest="out_every",
+                        help="How many epochs to wait before producing output.",
+                        default=1, type=int)
 
     parser.add_argument("-L", "--latent-size",
                         dest="latent_size",
