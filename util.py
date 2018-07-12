@@ -1,7 +1,7 @@
 
 
 import numpy as np
-import os, sys
+import os, sys, math
 import datetime, pathlib
 
 import torch
@@ -105,3 +105,46 @@ class Reshape(nn.Module):
 
     def forward(self, input):
         return input.view( (input.size(0),) + self.shape)
+
+
+class Block(nn.Module):
+
+    def __init__(self, in_channels, channels, num_convs = 3, kernel_size = 3, batch_norm=False, use_weight=True, use_res=True, deconv=False):
+        super().__init__()
+
+        self.layers = nn.Sequential()
+        self.use_weight = use_weight
+        self.use_res = use_res
+
+        padding = int(math.floor(kernel_size / 2))
+
+        self.upchannels = module=nn.Conv2d(in_channels, channels, kernel_size=1)
+
+        for i in range(num_convs):
+            if deconv:
+                self.layers.add_module(name='deconv{:01}'.format(i), module=nn.ConvTranspose2d(channels, channels, kernel_size=kernel_size, padding=padding, bias=not batch_norm))
+            else:
+                self.layers.add_module(name='conv{:01}'.format(i), module=nn.Conv2d(channels, channels, kernel_size=kernel_size, padding=padding, bias=not batch_norm))
+
+            if batch_norm:
+                self.layers.add_module(name='bn', module=nn.BatchNorm2d(channels))
+
+            self.layers.add_module(name='act', module=nn.ReLU())
+
+        if use_weight:
+            self.weight = nn.Parameter(torch.randn(1))
+
+    def forward(self, x):
+
+        x = self.upchannels(x)
+
+        out = self.layers(x)
+
+        if not self.use_res:
+            return out
+
+        if not self.use_weight:
+            return out + x
+
+        return out + self.weight * x
+

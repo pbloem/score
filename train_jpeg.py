@@ -78,17 +78,11 @@ def go(options):
     a, b, c = 8, 32, 128
 
     encoder = Sequential(
-        Conv2d(3, a, (5, 5), padding=2), ReLU(),
-        Conv2d(a, a, (5, 5), padding=2), ReLU(),
-        Conv2d(a, a, (5, 5), padding=2), ReLU(),
+        util.Block(3, a, use_res=options.use_res, batch_norm=options.use_bn),
         MaxPool2d((4,4)),
-        Conv2d(a, b, (5, 5), padding=2), ReLU(),
-        Conv2d(b, b, (5, 5), padding=2), ReLU(),
-        Conv2d(b, b, (5, 5), padding=2), ReLU(),
+        util.Block(a, b, use_res=options.use_res, batch_norm=options.use_bn),
         MaxPool2d((4, 4)),
-        Conv2d(b, c, (5, 5), padding=2), ReLU(),
-        Conv2d(c, c, (5, 5), padding=2), ReLU(),
-        Conv2d(c, c, (5, 5), padding=2), ReLU(),
+        util.Block(b, c, use_res=options.use_res, batch_norm=options.use_bn),
         MaxPool2d((4, 4)),
         util.Flatten(),
         Linear((WIDTH/64) * (HEIGHT/64) * c, 2 * options.latent_size)
@@ -100,17 +94,13 @@ def go(options):
         util.Reshape((c, 4, 5)),
         Upsample(scale_factor=4, mode=upmode),
         # util.Debug(lambda x: print('1', x.shape)),
-        ConvTranspose2d(c, c, (5, 5), padding=2), ReLU(),
-        ConvTranspose2d(c, c, (5, 5), padding=2), ReLU(),
-        ConvTranspose2d(c, b, (5, 5), padding=2), ReLU(),
+        util.Block(c, c, deconv=True, use_res=options.use_res, batch_norm=options.use_bn),
         Upsample(scale_factor=4, mode=upmode),
-        ConvTranspose2d(b, b, (5, 5), padding=2), ReLU(),
-        ConvTranspose2d(b, b, (5, 5), padding=2), ReLU(),
-        ConvTranspose2d(b, a, (5, 5), padding=2), ReLU(),
+        util.Block(c, b, deconv=True, use_res=options.use_res, batch_norm=options.use_bn),
         Upsample(scale_factor=4, mode=upmode),
-        ConvTranspose2d(a, a, (5, 5), padding=2), ReLU(),
-        ConvTranspose2d(a, a, (5, 5), padding=2), ReLU(),
-        ConvTranspose2d(a, 3, (5, 5), padding=2), Sigmoid()
+        util.Block(b, a, deconv=True, use_res=options.use_res, batch_norm=options.use_bn),
+        ConvTranspose2d(a, 3, kernel_size=1, padding=0),
+        Sigmoid()
     )
 
     if torch.cuda.is_available():
@@ -262,6 +252,17 @@ if __name__ == "__main__":
                         dest="seed",
                         help="RNG seed. Negative for random. Chosen seed will be printed to sysout",
                         default=1, type=int)
+
+
+    parser.add_argument("--res",
+                        dest="use_res",
+                        help="Whether to use residual connections.",
+                        action="store_true")
+
+    parser.add_argument("--bn",
+                        dest="use_bn",
+                        help="Whether to us batch normalization.",
+                        action="store_true")
 
     options = parser.parse_args()
 
