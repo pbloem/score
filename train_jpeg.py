@@ -168,9 +168,9 @@ def go(options):
 
             zsample = util.sample(zmean, zlsig)
 
-            xr_dec = relu(dec_dense1(zsample)) + weight * xr
-            xq_dec = relu(dec_dense2(xr_dec))  + weight * xq
-            xp_dec = relu(dec_dense3(xq_dec))  + weight * xp
+            xr_dec = (1 - weight) * relu(dec_dense1(zsample)) + weight * xr
+            xq_dec = (1 - weight) * relu(dec_dense2(xr_dec))  + weight * xq
+            xp_dec = (1 - weight) * relu(dec_dense3(xq_dec))  + weight * xp
 
             out = decoder(xp_dec)
 
