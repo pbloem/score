@@ -120,6 +120,14 @@ def go(options):
         encoder.cuda()
         decoder.cuda()
 
+        enc_dense1.cuda()
+        enc_dense2.cuda()
+        enc_dense3.cuda()
+
+        dec_dense1.cuda()
+        dec_dense2.cuda()
+        dec_dense3.cuda()
+
     ## Training loop
 
     params = list(encoder.parameters()) + list(decoder.parameters())
