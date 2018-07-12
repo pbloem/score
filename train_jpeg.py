@@ -87,7 +87,7 @@ def go(options):
         util.Block(b, c, use_res=options.use_res, batch_norm=options.use_bn),
         MaxPool2d((4, 4)),
         util.Flatten(),
-        Linear((WIDTH/64) * (HEIGHT/64) * c, options.latent_size), ReLU(),
+        Linear((WIDTH/64) * (HEIGHT/64) * c, options.latent_size * 2), ReLU(),
         # Linear(p, q), ReLU(),
         # Linear(q, r), ReLU(),
         # Linear(r, 2 * options.latent_size)
