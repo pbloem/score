@@ -76,6 +76,8 @@ def go(options):
 
     #- channel sizes
     a, b, c = 8, 32, 128
+    p, q, r = 128, 64, 32
+
 
     encoder = Sequential(
         util.Block(3, a, use_res=options.use_res, batch_norm=options.use_bn),
@@ -85,12 +87,18 @@ def go(options):
         util.Block(b, c, use_res=options.use_res, batch_norm=options.use_bn),
         MaxPool2d((4, 4)),
         util.Flatten(),
-        Linear((WIDTH/64) * (HEIGHT/64) * c, 2 * options.latent_size)
+        Linear((WIDTH/64) * (HEIGHT/64) * c, p), ReLU(),
+        Linear(p, q), ReLU(),
+        Linear(q, r), ReLU(),
+        Linear(r, 2 * options.latent_size)
     )
 
     upmode = 'bilinear'
     decoder = Sequential(
-        Linear(options.latent_size, 5 * 4 * c), ReLU(),
+        Linear(options.latent_size, r), ReLU(),
+        Linear(r, q), ReLU(),
+        Linear(q, p), ReLU(),
+        Linear(p,  5 * 4 * c), ReLU(),
         util.Reshape((c, 4, 5)),
         Upsample(scale_factor=4, mode=upmode),
         # util.Debug(lambda x: print('1', x.shape)),
