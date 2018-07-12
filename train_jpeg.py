@@ -11,7 +11,7 @@ from argparse import ArgumentParser
 
 import torch
 from torch.optim import Adam
-from torch.nn.functional import binary_cross_entropy
+from torch.nn.functional import binary_cross_entropy, relu
 from torch.nn import Conv2d, ConvTranspose2d, MaxPool2d, Linear, Sequential, ReLU, Sigmoid, Upsample
 from torch.autograd import Variable
 
@@ -42,7 +42,7 @@ def anneal(step, total, k=1.0, anneal_function='logistic'):
     if anneal_function == 'logistic':
         return float(1 / (1 + np.exp(-k * (step - total / 2))))
     elif anneal_function == 'linear':
-        return min(1, step / total)
+        return min(1, step / (total*1.5))
 
 def go(options):
 
@@ -87,15 +87,20 @@ def go(options):
         util.Block(b, c, use_res=options.use_res, batch_norm=options.use_bn),
         MaxPool2d((4, 4)),
         util.Flatten(),
-        Linear((WIDTH/64) * (HEIGHT/64) * c, options.latent_size * 2)
-        # Linear(p, q), ReLU(),
-        # Linear(q, r), ReLU(),
-        # Linear(r, 2 * options.latent_size)
+        Linear((WIDTH/64) * (HEIGHT/64) * c, p)
     )
+
+    enc_dense1 = Linear(p, q)
+    enc_dense2 = Linear(q, r)
+    enc_dense3 = Linear(r, options.latent_size * 2)
+
+    dec_dense1 = Linear(options.latent_size, r)
+    dec_dense2 = Linear(r, q)
+    dec_dense3 = Linear(q, p)
 
     upmode = 'bilinear'
     decoder = Sequential(
-        Linear(options.latent_size, 5 * 4 * c), ReLU(),
+        Linear(p, 5 * 4 * c), ReLU(),
         # Linear(r, q), ReLU(),
         # Linear(q, p), ReLU(),
         # Linear(p,  5 * 4 * c), ReLU(),
@@ -127,6 +132,10 @@ def go(options):
     images = torch.from_numpy(np.load(options.sample_file)['images']).permute(0, 3, 1, 2)
 
     for e in range(options.epochs):
+
+        weight = 1 - anneal(e, options.epochs)
+        print('epoch {}, weight {:.4}'.format(e, weight))
+
         for batch, _ in tqdm.tqdm(dataloader):
 
             if torch.cuda.is_available():
@@ -139,14 +148,23 @@ def go(options):
 
             b, c, h, w = batch.size()
 
-            zcomb = encoder(batch)
+            xp = encoder(batch)
+
+            xq    = relu(enc_dense1(xp))
+            xr    = relu(enc_dense2(xq))
+            zcomb = relu(enc_dense3(xr))
+
             zmean, zlsig = zcomb[:, :options.latent_size], zcomb[:, options.latent_size:]
 
             kl_loss = util.kl_loss(zmean, zlsig)
 
             zsample = util.sample(zmean, zlsig)
 
-            out = decoder(zsample)
+            xr_dec = relu(dec_dense1(zsample)) + weight * xr
+            xq_dec = relu(dec_dense2(xr_dec))  + weight * xq
+            xp_dec = relu(dec_dense3(xq_dec))  + weight * xp
+
+            out = decoder(xp_dec)
 
             rec_loss = binary_cross_entropy(out, batch, reduce=False).view(b, -1).sum(dim=1)
 
