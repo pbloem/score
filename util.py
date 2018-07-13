@@ -249,8 +249,8 @@ def slerp(x, y, steps=5):
         d     = d.cuda()
         angle = angle.cuda()
 
-    d1 = torch.sin(d     * angle) / torch.sin(angle)
-    d2 = torch.sin((1-d) * angle) / torch.sin(angle)
+    d1 = torch.sin((1-d) * angle) / torch.sin(angle)
+    d2 = torch.sin(d     * angle) / torch.sin(angle)
 
     return   x.unsqueeze(0).expand(steps, n) * d1 \
            + y.unsqueeze(0).expand(steps, n) * d2
