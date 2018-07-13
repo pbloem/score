@@ -87,20 +87,20 @@ def go(options):
         util.Block(b, c, use_res=options.use_res, batch_norm=options.use_bn),
         MaxPool2d((4, 4)),
         util.Flatten(),
-        Linear((WIDTH/64) * (HEIGHT/64) * c, p)
+        Linear((WIDTH/64) * (HEIGHT/64) * c, options.latent_size * 2)
     )
 
-    enc_dense1 = Linear(p, q)
-    enc_dense2 = Linear(q, r)
-    enc_dense3 = Linear(r, options.latent_size * 2)
-
-    dec_dense1 = Linear(options.latent_size, r)
-    dec_dense2 = Linear(r, q)
-    dec_dense3 = Linear(q, p)
+    # enc_dense1 = Linear(p, q)
+    # enc_dense2 = Linear(q, r)
+    # enc_dense3 = Linear(r, options.latent_size * 2)
+    #
+    # dec_dense1 = Linear(options.latent_size, r)
+    # dec_dense2 = Linear(r, q)
+    # dec_dense3 = Linear(q, p)
 
     upmode = 'bilinear'
     decoder = Sequential(
-        Linear(p, 5 * 4 * c), ReLU(),
+        Linear(options.latent_size, 5 * 4 * c), ReLU(),
         # Linear(r, q), ReLU(),
         # Linear(q, p), ReLU(),
         # Linear(p,  5 * 4 * c), ReLU(),
@@ -120,13 +120,13 @@ def go(options):
         encoder.cuda()
         decoder.cuda()
 
-        enc_dense1.cuda()
-        enc_dense2.cuda()
-        enc_dense3.cuda()
-
-        dec_dense1.cuda()
-        dec_dense2.cuda()
-        dec_dense3.cuda()
+        # enc_dense1.cuda()
+        # enc_dense2.cuda()
+        # enc_dense3.cuda()
+        #
+        # dec_dense1.cuda()
+        # dec_dense2.cuda()
+        # dec_dense3.cuda()
 
     ## Training loop
 
@@ -144,23 +144,22 @@ def go(options):
         weight = 1 - anneal(e, options.epochs)
         print('epoch {}, weight {:.4}'.format(e, weight))
 
-        for batch, _ in tqdm.tqdm(dataloader):
+        for i, (batch, _) in enumerate(tqdm.tqdm(dataloader)):
 
             if torch.cuda.is_available():
                 batch = batch.cuda()
             batch = Variable(batch)
 
             optimizer.zero_grad()
-
             #- forward pass
 
             b, c, h, w = batch.size()
 
-            xp = encoder(batch)
+            zcomb = encoder(batch)
 
-            xq    = relu(enc_dense1(xp))
-            xr    = relu(enc_dense2(xq))
-            zcomb = relu(enc_dense3(xr))
+            # xq    = relu(enc_dense1(xp))
+            # xr    = relu(enc_dense2(xq))
+            # zcomb = relu(enc_dense3(xr))
 
             zmean, zlsig = zcomb[:, :options.latent_size], zcomb[:, options.latent_size:]
 
@@ -168,11 +167,11 @@ def go(options):
 
             zsample = util.sample(zmean, zlsig)
 
-            xr_dec = (1 - weight) * relu(dec_dense1(zsample)) + weight * xr
-            xq_dec = (1 - weight) * relu(dec_dense2(xr_dec))  + weight * xq
-            xp_dec = (1 - weight) * relu(dec_dense3(xq_dec))  + weight * xp
+            # xr_dec = (1 - weight) * relu(dec_dense1(zsample)) + weight * xr
+            # xq_dec = (1 - weight) * relu(dec_dense2(xr_dec))  + weight * xq
+            # xp_dec = (1 - weight) * relu(dec_dense3(xq_dec))  + weight * xp
 
-            out = decoder(xp_dec)
+            out = decoder(zsample)
 
             rec_loss = binary_cross_entropy(out, batch, reduce=False).view(b, -1).sum(dim=1)
 
@@ -231,6 +230,13 @@ def go(options):
                       filename='score.{:04}.pdf'.format(e), invert=True)
 
             print('-- finished plot')
+
+            print('Plotting interpolations.')
+
+            def enc(inp):
+                return encoder(inp)[:, :options.latent_size]
+
+            util.interpolate(images, enc, decoder, name='interpolate.{}'.format(e))
 
 if __name__ == "__main__":
 

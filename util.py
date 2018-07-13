@@ -3,6 +3,7 @@
 import numpy as np
 import os, sys, math
 import datetime, pathlib
+import random
 
 import torch
 from torch.autograd import Variable
@@ -12,9 +13,22 @@ import matplotlib as mpl
 mpl.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib import cm
+import matplotlib.gridspec as gridspec
 
 from scipy.stats import norm
 
+def clean(axes=None):
+
+    if axes is None:
+        axes = plt.gca()
+
+    axes.spines["right"].set_visible(False)
+    axes.spines["top"].set_visible(False)
+    axes.spines["bottom"].set_visible(False)
+    axes.spines["left"].set_visible(False)
+
+    axes.get_xaxis().set_tick_params(which='both', top='off', bottom='off', labeltop='off', labelbottom='off')
+    axes.get_yaxis().set_tick_params(which='both', left='off', right='off', labelleft='off', labelright='off')
 
 def kl_loss(zmean, zlsig):
     b, l = zmean.size()
@@ -147,4 +161,96 @@ class Block(nn.Module):
             return out + x
 
         return out + self.weight * x
+
+def interpolate(images, encoder, decoder, steps=7, name='interpolate', mode='spherical', reps=5):
+    """
+    Plots a grid of values interpolating (linearly)  between four given items.
+
+    :param name:
+    :return:
+    """
+
+    plt.figure(figsize=(steps + 2, reps))
+
+    f, aa = plt.subplots(reps, steps + 2, gridspec_kw = {'wspace':0, 'hspace':0.01})
+
+    for rep in range(reps):
+
+        x1 = images[random.randint(0, images.size(0))]
+        x2 = images[random.randint(0, images.size(0))]
+
+        x1, x2 = x1.unsqueeze(0).float(), x2.unsqueeze(0).float()
+
+        if torch.cuda.is_available():
+            x1, x2 = x1.cuda(), x2.cuda()
+        x1, x2 = Variable(x1), Variable(x2)
+
+        z1, z2 = encoder(x1), encoder(x2)
+
+        if mode == 'spherical':
+            zs = slerp(z1, z2, steps)
+        elif mode == 'linear':
+            zs = linp(z1, z2, steps)
+        else:
+            raise Exception('Mode {} not recognized'.format(mode))
+
+        out = decoder(zs).data
+        out = np.transpose(out.cpu().numpy(), (0, 2, 3, 1))
+
+        for i in range(steps):
+            aa[rep, i+1].imshow(out[i])
+
+        aa[rep,  0].imshow(np.transpose(x1[0].cpu().numpy(), (1, 2, 0)))
+        aa[rep, -1].imshow(np.transpose(x2[0].cpu().numpy(), (1, 2, 0)))
+
+    for i in range(aa.shape[0]):
+        for j in range(aa.shape[1]):
+            clean(aa[i,j])
+
+    plt.savefig(name + '.pdf')
+
+def linp(x, y, steps=5):
+    """
+    Produces a spherical linear interpolation between two points
+
+    :param x:
+    :param y:
+    :param steps:
+    :return:
+    """
+    assert x.size(0) == y.size(0)
+    n = x.size(0)
+
+    d = torch.linspace(0, 1, steps)
+
+    return x.unsqueeze(0).expand(steps, n) * d.unsqueeze(1) \
+           + y.unsqueeze(0).expand(steps, n) * (1-d).unsqueeze(1)
+
+def slerp(x, y, steps=5):
+    """
+    Produces a spherical linear interpolation between two points
+
+    :param x:
+    :param y:
+    :param steps:
+    :return:
+    """
+    assert x.size(0) == y.size(0)
+
+    x, y = x[0], y[0]
+
+    n = x.size(0)
+
+    angle = torch.acos(torch.dot(x, y)/(x.norm() * y.norm()))
+
+    d = torch.linspace(0, 1, steps).unsqueeze(1)
+
+    d1 = torch.sin(d     * angle) / torch.sin(angle)
+    d2 = torch.sin((1-d) * angle) / torch.sin(angle)
+
+    return   x.unsqueeze(0).expand(steps, n) * d1 \
+           + y.unsqueeze(0).expand(steps, n) * d2
+
+
+
 
