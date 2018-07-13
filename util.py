@@ -245,6 +245,10 @@ def slerp(x, y, steps=5):
 
     d = torch.linspace(0, 1, steps).unsqueeze(1)
 
+    if torch.cuda.is_available():
+        d     = d.cuda()
+        angle = angle.cuda()
+
     d1 = torch.sin(d     * angle) / torch.sin(angle)
     d2 = torch.sin((1-d) * angle) / torch.sin(angle)
 
