@@ -89,7 +89,7 @@ def go(options):
     )
 
     for i in range(options.depth):
-        encoder.add_module(str(i), util.Block(c, c, use_res=options.use_res, batch_norm=options.use_bn))
+        encoder.add_module('enc_' + str(i), util.Block(c, c, use_res=options.use_res, batch_norm=options.use_bn))
 
     encoder.add_module('a', util.Flatten())
     encoder.add_module('b', Linear((WIDTH/64) * (HEIGHT/64) * c, options.latent_size * 2))
@@ -103,7 +103,7 @@ def go(options):
     )
 
     for _ in range(options.depth):
-        decoder.add_module(str(i), util.Block(c, c, deconv=True, use_res=options.use_res, batch_norm=options.use_bn))
+        decoder.add_module('dec_' + str(i), util.Block(c, c, deconv=True, use_res=options.use_res, batch_norm=options.use_bn))
 
 
     decoder.add_module('a', Upsample(scale_factor=4, mode=upmode))
