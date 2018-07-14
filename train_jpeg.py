@@ -78,7 +78,7 @@ def go(options):
     a, b, c = 8, 32, 128
     p, q, r = 128, 64, 32
 
-
+    #- Decoder
     encoder = Sequential(
         util.Block(3, a, use_res=options.use_res, batch_norm=options.use_bn),
         MaxPool2d((4,4)),
@@ -86,47 +86,39 @@ def go(options):
         MaxPool2d((4, 4)),
         util.Block(b, c, use_res=options.use_res, batch_norm=options.use_bn),
         MaxPool2d((4, 4)),
-        util.Flatten(),
-        Linear((WIDTH/64) * (HEIGHT/64) * c, options.latent_size * 2)
     )
 
-    # enc_dense1 = Linear(p, q)
-    # enc_dense2 = Linear(q, r)
-    # enc_dense3 = Linear(r, options.latent_size * 2)
-    #
-    # dec_dense1 = Linear(options.latent_size, r)
-    # dec_dense2 = Linear(r, q)
-    # dec_dense3 = Linear(q, p)
+    for i in range(options.depth):
+        encoder.add_module(str(i), util.Block(c, c, use_res=options.use_res, batch_norm=options.use_bn))
 
+    encoder.add_module('a', util.Flatten())
+    encoder.add_module('b', Linear((WIDTH/64) * (HEIGHT/64) * c, options.latent_size * 2))
+
+
+    #- Decoder
     upmode = 'bilinear'
     decoder = Sequential(
         Linear(options.latent_size, 5 * 4 * c), ReLU(),
-        # Linear(r, q), ReLU(),
-        # Linear(q, p), ReLU(),
-        # Linear(p,  5 * 4 * c), ReLU(),
-        util.Reshape((c, 4, 5)),
-        Upsample(scale_factor=4, mode=upmode),
-        # util.Debug(lambda x: print('1', x.shape)),
-        util.Block(c, c, deconv=True, use_res=options.use_res, batch_norm=options.use_bn),
-        Upsample(scale_factor=4, mode=upmode),
-        util.Block(c, b, deconv=True, use_res=options.use_res, batch_norm=options.use_bn),
-        Upsample(scale_factor=4, mode=upmode),
-        util.Block(b, a, deconv=True, use_res=options.use_res, batch_norm=options.use_bn),
-        ConvTranspose2d(a, 3, kernel_size=1, padding=0),
-        Sigmoid()
+        util.Reshape((c, 4, 5))
     )
+
+    for _ in range(options.depth):
+        decoder.add_module(str(i), util.Block(c, c, deconv=True, use_res=options.use_res, batch_norm=options.use_bn))
+
+
+    decoder.add_module('a', Upsample(scale_factor=4, mode=upmode))
+    decoder.add_module('b', util.Block(c, c, deconv=True, use_res=options.use_res, batch_norm=options.use_bn))
+    decoder.add_module('c', Upsample(scale_factor=4, mode=upmode))
+    decoder.add_module('d', util.Block(c, b, deconv=True, use_res=options.use_res, batch_norm=options.use_bn))
+    decoder.add_module('e', Upsample(scale_factor=4, mode=upmode))
+    decoder.add_module('f', util.Block(b, a, deconv=True, use_res=options.use_res, batch_norm=options.use_bn))
+    decoder.add_module('g', ConvTranspose2d(a, 3, kernel_size=1, padding=0))
+    decoder.add_module('h', Sigmoid())
+
 
     if torch.cuda.is_available():
         encoder.cuda()
         decoder.cuda()
-
-        # enc_dense1.cuda()
-        # enc_dense2.cuda()
-        # enc_dense3.cuda()
-        #
-        # dec_dense1.cuda()
-        # dec_dense2.cuda()
-        # dec_dense3.cuda()
 
     ## Training loop
 
@@ -141,8 +133,7 @@ def go(options):
 
     for e in range(options.epochs):
 
-        weight = 1 - anneal(e, options.epochs)
-        print('epoch {}, weight {:.4}'.format(e, weight))
+        print('epoch {}'.format(e))
 
         for i, (batch, _) in enumerate(tqdm.tqdm(dataloader)):
 
@@ -157,19 +148,11 @@ def go(options):
 
             zcomb = encoder(batch)
 
-            # xq    = relu(enc_dense1(xp))
-            # xr    = relu(enc_dense2(xq))
-            # zcomb = relu(enc_dense3(xr))
-
             zmean, zlsig = zcomb[:, :options.latent_size], zcomb[:, options.latent_size:]
 
             kl_loss = util.kl_loss(zmean, zlsig)
 
             zsample = util.sample(zmean, zlsig)
-
-            # xr_dec = (1 - weight) * relu(dec_dense1(zsample)) + weight * xr
-            # xq_dec = (1 - weight) * relu(dec_dense2(xr_dec))  + weight * xq
-            # xp_dec = (1 - weight) * relu(dec_dense3(xq_dec))  + weight * xp
 
             out = decoder(zsample)
 
@@ -268,6 +251,11 @@ if __name__ == "__main__":
                         help="Batch size",
                         default=32, type=int)
 
+    parser.add_argument("-d", "--depth",
+                        dest="depth",
+                        help="The number of resnet blocks to add to the basic model.",
+                        default=0, type=int)
+
     parser.add_argument("-D", "--data-directory",
                         dest="data_dir",
                         help="Data directory",
@@ -292,7 +280,6 @@ if __name__ == "__main__":
                         dest="seed",
                         help="RNG seed. Negative for random. Chosen seed will be printed to sysout",
                         default=1, type=int)
-
 
     parser.add_argument("--res",
                         dest="use_res",
