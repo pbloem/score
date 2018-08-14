@@ -34,7 +34,7 @@ import tqdm
 
 import skvideo.io
 
-import util
+import util, models
 
 WIDTH, HEIGHT = 320, 256
 
@@ -73,56 +73,26 @@ def go(options):
                                               num_workers=2)
 
     ## Build the model
+    OUTCN = 64
+    PIXCN = 60
+    LAYERS = 5
+    encoder = models.ImEncoder(in_size=(3, HEIGHT, WIDTH), zsize=options.latent_size)
+    decoder = models.ImDecoder(in_size=(3, HEIGHT, WIDTH), zsize=options.latent_size, out_channels=OUTCN)
+    pixcnn = models.LGated(
+        input_size=(3, HEIGHT, WIDTH), conditional_channels=OUTCN,
+        channels=PIXCN, num_layers=LAYERS)
 
-    #- channel sizes
-    a, b, c = 8, 32, 128
-    p, q, r = 128, 64, 32
-
-    #- Decoder
-    encoder = Sequential(
-        util.Block(3, a, use_res=options.use_res, batch_norm=options.use_bn),
-        MaxPool2d((4,4)),
-        util.Block(a, b, use_res=options.use_res, batch_norm=options.use_bn),
-        MaxPool2d((4, 4)),
-        util.Block(b, c, use_res=options.use_res, batch_norm=options.use_bn),
-        MaxPool2d((4, 4)),
-    )
-
-    for i in range(options.depth):
-        encoder.add_module('enc_' + str(i), util.Block(c, c, use_res=options.use_res, batch_norm=options.use_bn))
-
-    encoder.add_module('a', util.Flatten())
-    encoder.add_module('b', Linear((WIDTH/64) * (HEIGHT/64) * c, options.latent_size * 2))
-
-
-    #- Decoder
-    upmode = 'bilinear'
-    decoder = Sequential(
-        Linear(options.latent_size, 5 * 4 * c), ReLU(),
-        util.Reshape((c, 4, 5))
-    )
-
-    for _ in range(options.depth):
-        decoder.add_module('dec_' + str(i), util.Block(c, c, deconv=True, use_res=options.use_res, batch_norm=options.use_bn))
-
-
-    decoder.add_module('a', Upsample(scale_factor=4, mode=upmode))
-    decoder.add_module('b', util.Block(c, c, deconv=True, use_res=options.use_res, batch_norm=options.use_bn))
-    decoder.add_module('c', Upsample(scale_factor=4, mode=upmode))
-    decoder.add_module('d', util.Block(c, b, deconv=True, use_res=options.use_res, batch_norm=options.use_bn))
-    decoder.add_module('e', Upsample(scale_factor=4, mode=upmode))
-    decoder.add_module('f', util.Block(b, a, deconv=True, use_res=options.use_res, batch_norm=options.use_bn))
-    decoder.add_module('g', ConvTranspose2d(a, 3, kernel_size=1, padding=0))
-    decoder.add_module('h', Sigmoid())
-
+    mods = [encoder, decoder, pixcnn]
 
     if torch.cuda.is_available():
-        encoder.cuda()
-        decoder.cuda()
+        for m in mods:
+            m.cuda()
 
     ## Training loop
 
-    params = list(encoder.parameters()) + list(decoder.parameters())
+    params = []
+    for m in mods:
+        params.extend(m.parameters())
     optimizer = Adam(params, lr=options.lr)
 
     ### Fit model
@@ -154,9 +124,11 @@ def go(options):
 
             zsample = util.sample(zmean, zlsig)
 
-            out = decoder(zsample)
+            cond = decoder(zsample)
 
-            rec_loss = binary_cross_entropy(out, batch, reduce=False).view(b, -1).sum(dim=1)
+            rec = pixcnn(input, cond)
+
+            rec_loss = binary_cross_entropy(rec, batch, reduce=False).view(b, -1).sum(dim=1)
 
             #- backward pass
 
