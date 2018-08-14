@@ -76,8 +76,8 @@ def go(options):
     OUTCN = 64
     PIXCN = 60
     LAYERS = 5
-    encoder = models.ImEncoder(in_size=(3, HEIGHT, WIDTH), zsize=options.latent_size)
-    decoder = models.ImDecoder(in_size=(3, HEIGHT, WIDTH), zsize=options.latent_size, out_channels=OUTCN)
+    encoder = models.ImEncoder(in_size=(HEIGHT, WIDTH), zsize=options.latent_size)
+    decoder = models.ImDecoder(in_size=(HEIGHT, WIDTH), zsize=options.latent_size, out_channels=OUTCN)
     pixcnn = models.LGated(
         input_size=(3, HEIGHT, WIDTH), conditional_channels=OUTCN,
         channels=PIXCN, num_layers=LAYERS)

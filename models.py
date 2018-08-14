@@ -128,7 +128,7 @@ class ImEncoder(nn.Module):
     """
     def __init__(self, in_size, zsize=32, use_res=False, use_bn=False, depth=0, colors=3):
         a, b, c = 16, 64, 128  # channel sizes
-        p, q, r = 2, 2, 2  # up/downsampling
+        p, q, r = 4, 4, 4  # up/downsampling
 
         super().__init__()
         self.zsize = zsize
@@ -166,7 +166,7 @@ class ImDecoder(nn.Module):
         super().__init__()
 
         a, b, c = 60, 64, 128  # channel sizes
-        p, q, r = 2, 2, 2  # up/downsampling
+        p, q, r = 4, 4, 4  # up/downsampling
 
         self.zsize = zsize
 
