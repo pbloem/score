@@ -256,5 +256,3 @@ def slerp(x, y, steps=5):
            + y.unsqueeze(0).expand(steps, n) * d2
 
 
-
-
