@@ -66,7 +66,7 @@ FPS = 25             # We assume PAL for now
 SECONDS_PER_BAR = 2  # Default MIDI timing (120BPM, 480 BPQ)
 MVAE_URL_DRUMS = 'https://storage.googleapis.com/magentadata/models/music_vae/checkpoints/cat-drums_2bar_small.lokl.tar'
 MVAE_URL_MEL   = 'https://storage.googleapis.com/magentadata/models/music_vae/checkpoints/cat-mel_2bar_big.tar'
-MVAE_URL_POLY  = 'https://storage.googleapis.com/magentadata/models/music_vae/checkpoints/hierdec-mel_16bar.tar'
+MVAE_URL_POLY  = 'https://storage.googleapis.com/magentadata/models/music_vae/checkpoints/hierdec-trio_16bar.tar'
 SAMPLE_RATE = 44100
 FRAMECHUNK = 100 # Set as big as memory allows
 
@@ -98,7 +98,7 @@ def go(arg):
         mfile = 'musicmodel.poly.tar'
         if not os.path.isfile(mfile):
             print('Downloading MusicVAE (polyphonic model).')
-            wget.download(MVAE_URL_DRUMS, mfile)
+            wget.download(MVAE_URL_POLY, mfile)
 
         decoder_config = configs.CONFIG_MAP['hierdec-trio_16bar']
         decoder = TrainedModel(decoder_config, batch_size=4, checkpoint_dir_or_path=mfile)
@@ -265,7 +265,7 @@ if __name__ == "__main__":
 
     parser.add_argument("-i", "--input",
                         dest="input",
-                        help="Input movie file. Preferably a ",
+                        help="Input movie file. Most common formats should work. ",
                         default=None, type=str)
 
     parser.add_argument("-m", "--mapper",
@@ -308,7 +308,7 @@ if __name__ == "__main__":
 
     parser.add_argument("--encoder-model",
                         dest="encoder",
-                        help="Which model to use for feature extraction (inceptionv3, mobilenet)",
+                        help="Which model to use for feature extraction (inceptionv3, mobilenetv2)",
                         default='inceptionv3', type=str)
 
     parser.add_argument("--decoder-model",
