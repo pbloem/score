@@ -69,11 +69,43 @@ MVAE_URL_MEL   = 'https://storage.googleapis.com/magentadata/models/music_vae/ch
 MVAE_URL_POLY  = 'https://storage.googleapis.com/magentadata/models/music_vae/checkpoints/hierdec-mel_16bar.tar'
 SAMPLE_RATE = 44100
 FRAMECHUNK = 100 # Set as big as memory allows
-LATENTSIZE = 256
 
 def go(arg):
 
     # Load pretrained models
+    ## Load the Music VAE model
+    if arg.decoder == 'melody':
+        mfile = 'musicmodel.melody.tar'
+        if not os.path.isfile(mfile):
+            print('Downloading MusicVAE (melody model).')
+            wget.download(MVAE_URL_MEL, mfile)
+
+        decoder_config = configs.CONFIG_MAP['cat-mel_2bar_big']
+        decoder = TrainedModel(decoder_config, batch_size=4, checkpoint_dir_or_path=mfile)
+        latent_size = 256
+
+    elif arg.decoder == 'drums':
+        mfile = 'musicmodel.drums.tar'
+        if not os.path.isfile(mfile):
+            print('Downloading MusicVAE (drums model).')
+            wget.download(MVAE_URL_DRUMS, mfile)
+
+        decoder_config = configs.CONFIG_MAP['cat-drums_2bar_small']
+        decoder = TrainedModel(decoder_config, batch_size=4, checkpoint_dir_or_path=mfile)
+        latent_size = 128
+
+    elif arg.decoder == 'poly':
+        mfile = 'musicmodel.poly.tar'
+        if not os.path.isfile(mfile):
+            print('Downloading MusicVAE (polyphonic model).')
+            wget.download(MVAE_URL_DRUMS, mfile)
+
+        decoder_config = configs.CONFIG_MAP['hierdec-trio_16bar']
+        decoder = TrainedModel(decoder_config, batch_size=4, checkpoint_dir_or_path=mfile)
+        latent_size = 256
+
+    else:
+        raise Exception('Decoder model {} not recognized. Use "poly", "melody" or "drums"'.format(arg.decoder))
 
     shape = None
 
@@ -95,13 +127,13 @@ def go(arg):
 
     if arg.input == 'none':
         ## Generate 6 bars of random music
-        z = np.random.randn(6, LATENTSIZE)
+        z = np.random.randn(6, latent_size)
         has_video = False
 
     elif arg.input == 'slerp':
         ## Generate 6 bars of random music
-        z0 = np.random.randn(LATENTSIZE) * 2
-        z1 = np.random.randn(LATENTSIZE) * 2
+        z0 = np.random.randn(latent_size) * 2
+        z1 = np.random.randn(latent_size) * 2
 
         z = tfutil.slerp(z0, z1, steps=10)
 
@@ -146,7 +178,7 @@ def go(arg):
         b, fdim = features.shape
 
         # Apply PCA
-        pca = PCA(n_components=LATENTSIZE, whiten=True)
+        pca = PCA(n_components=latent_size, whiten=True)
         z = pca.fit_transform(features)
 
         print(z.shape)
@@ -180,34 +212,6 @@ def go(arg):
 
     # Generate MIDI (3)
     b, zdim = z.shape
-
-    ## Load the Music VAE model
-    if arg.decoder == 'melody':
-        mfile = 'musicmodel.melody.tar'
-        if not os.path.isfile(mfile):
-            print('Downloading MusicVAE (melody model).')
-            wget.download(MVAE_URL_MEL, mfile)
-
-        decoder_config = configs.CONFIG_MAP['cat-mel_2bar_big']
-        decoder = TrainedModel(decoder_config, batch_size=4, checkpoint_dir_or_path=mfile)
-    elif arg.decoder == 'drums':
-        mfile = 'musicmodel.drums.tar'
-        if not os.path.isfile(mfile):
-            print('Downloading MusicVAE (drums model).')
-            wget.download(MVAE_URL_DRUMS, mfile)
-
-        decoder_config = configs.CONFIG_MAP['cat-drums_2bar_small']
-        decoder = TrainedModel(decoder_config, batch_size=4, checkpoint_dir_or_path=mfile)
-    elif arg.decoder == 'poly':
-        mfile = 'musicmodel.poly.tar'
-        if not os.path.isfile(mfile):
-            print('Downloading MusicVAE (polyphonic model).')
-            wget.download(MVAE_URL_DRUMS, mfile)
-
-        decoder_config = configs.CONFIG_MAP['hierdec-trio_16bar']
-        decoder = TrainedModel(decoder_config, batch_size=4, checkpoint_dir_or_path=mfile)
-    else:
-        raise Exception('Decoder model {} not recognized. Use "poly", "melody" or "drums"'.format(arg.decoder))
 
     noise = np.repeat(np.random.randn(1, zdim), b, axis=0)
     z = np.concatenate([z, noise], axis=1)
