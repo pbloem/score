@@ -342,7 +342,7 @@ if __name__ == "__main__":
     parser.add_argument("--model-dir",
                         dest="model_dir",
                         help="Directory to keep the downloaded models.",
-                        default=None, type=str)
+                        default='.', type=str)
 
     options = parser.parse_args()
 
