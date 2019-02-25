@@ -79,7 +79,7 @@ def go(arg):
     # Load pretrained models
     ## Load the Music VAE model
     if arg.decoder == 'melody':
-        mfile = 'musicmodel.melody.tar'
+        mfile = arg.model_dir + os.sep + 'musicmodel.melody.tar'
         if not os.path.isfile(mfile):
             print('Downloading MusicVAE (melody model).')
             wget.download(MVAE_URL_MEL, mfile)
@@ -89,7 +89,7 @@ def go(arg):
         latent_size = 256
 
     elif arg.decoder == 'drums':
-        mfile = 'musicmodel.drums.tar'
+        mfile = arg.model_dir + os.sep + 'musicmodel.drums.tar'
         if not os.path.isfile(mfile):
             print('Downloading MusicVAE (drums model).')
             wget.download(MVAE_URL_DRUMS, mfile)
@@ -99,7 +99,7 @@ def go(arg):
         latent_size = 128
 
     elif arg.decoder == 'poly':
-        mfile = 'musicmodel.poly.tar'
+        mfile = arg.model_dir + os.sep + 'musicmodel.poly.tar'
         if not os.path.isfile(mfile):
             print('Downloading MusicVAE (polyphonic model).')
             wget.download(MVAE_URL_POLY, mfile)
@@ -338,6 +338,11 @@ if __name__ == "__main__":
                         dest="decoder",
                         help="Which model to use for decoding (melody, drums, poly)",
                         default='melody', type=str)
+
+    parser.add_argument("--model-dir",
+                        dest="model_dir",
+                        help="Directory to keep the downloaded models.",
+                        default=None, type=str)
 
     options = parser.parse_args()
 
