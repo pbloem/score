@@ -14,6 +14,8 @@ from magenta.models.music_vae.trained_model import TrainedModel
 import skvideo.io
 import wget, tqdm, os, tfutil, sys
 
+import pandas as pd
+
 from scipy.io import wavfile
 
 from argparse import ArgumentParser
@@ -28,6 +30,8 @@ if not sys.warnoptions:
 from sklearn.decomposition import PCA
 
 from skimage.transform import resize
+
+import random
 
 """
 Generate a MIDI track from a movie file.
@@ -139,6 +143,25 @@ def go(arg):
 
         has_video = False
     else:
+        # Load a random video from the openbeelden data
+        if arg.input == 'random':
+            # - data urls
+            df = pd.read_csv(tfutil.DIR + os.sep + 'openbeelden.clean.csv', header=None)
+            l = len(df)
+
+            index = random.randint(0, l)
+            url = df.iloc[index, 2]
+
+            print('Downloading video', url)
+            try:
+                dir = './downloaded/'
+                tfutil.ensure(dir)
+
+                arg.input = wget.download(url, out=dir)
+            except Exception as e:
+                print('*** Could not download', url)
+                raise e
+
         ## Load a video to 'inspire' the random music
 
         # Loop through the chunks
@@ -265,7 +288,7 @@ if __name__ == "__main__":
 
     parser.add_argument("-i", "--input",
                         dest="input",
-                        help="Input movie file. Most common formats should work. ",
+                        help="Input movie file. Most common formats should work. The following keywords activate a special mode: 'none' generate music only, 'slerp' generate randomly interpolated music, 'random' download a random video file from the openbeelden archive.",
                         default=None, type=str)
 
     parser.add_argument("-m", "--mapper",

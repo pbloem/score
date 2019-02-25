@@ -5,6 +5,14 @@ from itertools import chain, islice
 import numpy as np
 from numpy.linalg import norm
 
+import os, pathlib
+
+""" Script directory """
+DIR = os.path.dirname(os.path.realpath(__file__))
+
+def ensure(dir):
+    pathlib.Path(dir).mkdir(parents=True, exist_ok=True)
+
 def chunks(iterable, size=10):
     iterator = iter(iterable)
     for first in iterator:
