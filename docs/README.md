@@ -21,6 +21,10 @@ Linked Data standards. We will aim to use this as our archive for the audio part
 
 ### Updates
 
+#### 29 March 2019
+
+We will present some preliminary results from Score at the [Rewire instriumewntal shifts symposium](https://www.rewirefestival.nl/event/instrumental-shifts-symposium) today. The slides of our lightning talk (including links to videos) [can be found here](./score-rewire.pdf).
+
 #### 19 April 2018
 
 SCORE! now has a webpage. We are currently investigating the use of Variational Autoencoders for MIDI music, through 
