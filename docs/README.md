@@ -10,7 +10,7 @@ e-humanities or general multimedia manipulation.
 
 ### Examples
 
-Some preliminary examples of video-to-audio mapping can [be found here](https://www.dropbox.com/sh/kox5ai1dukebgnk)./AAAhkgeuD31fCLJ1boZ7_SxEa?dl=0
+Some preliminary examples of video-to-audio mapping can [be found here](https://www.dropbox.com/sh/kox5ai1dukebgnk/AAAhkgeuD31fCLJ1boZ7_SxEa?dl=0).
 
 ### People
 
