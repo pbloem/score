@@ -1,6 +1,7 @@
 import keras
 from keras.applications.inception_v3 import InceptionV3
 from keras.applications.mobilenetv2 import MobileNetV2
+from keras import backend as K
 
 from keras.preprocessing.image import ImageDataGenerator
 
@@ -76,6 +77,9 @@ FRAMECHUNK = 100 # Set as big as memory allows
 
 def go(arg):
 
+    # Check if GPU available
+    print('GPUS available: ', K.tensorflow_backend._get_available_gpus())
+
     # Load pretrained models
     ## Load the Music VAE model
     if arg.decoder == 'melody':
@@ -87,6 +91,7 @@ def go(arg):
         decoder_config = configs.CONFIG_MAP['cat-mel_2bar_big']
         decoder = TrainedModel(decoder_config, batch_size=4, checkpoint_dir_or_path=mfile)
         latent_size = 256
+        chunk_length = 2
 
     elif arg.decoder == 'drums':
         mfile = arg.model_dir + os.sep + 'musicmodel.drums.tar'
@@ -97,6 +102,7 @@ def go(arg):
         decoder_config = configs.CONFIG_MAP['cat-drums_2bar_small']
         decoder = TrainedModel(decoder_config, batch_size=4, checkpoint_dir_or_path=mfile)
         latent_size = 128
+        chunk_length = 2
 
     elif arg.decoder == 'poly':
         mfile = arg.model_dir + os.sep + 'musicmodel.poly.tar'
@@ -107,35 +113,37 @@ def go(arg):
         decoder_config = configs.CONFIG_MAP['hierdec-trio_16bar']
         decoder = TrainedModel(decoder_config, batch_size=4, checkpoint_dir_or_path=mfile)
         latent_size = 256
+        chunk_length = 16
 
     else:
         raise Exception('Decoder model {} not recognized. Use "poly", "melody" or "drums"'.format(arg.decoder))
 
     shape = None
 
-    if arg.encoder == 'inceptionv3':
-        encoder = InceptionV3(weights='imagenet', include_top=False)
-        prep = keras.applications.inception_v3.preprocess_input
-        flat = 6 * 8 * 2048
-    elif arg.encoder == 'mobilenetv2':
-        encoder = MobileNetV2(weights='imagenet', include_top=False)
-        prep = keras.applications.mobilenetv2.preprocess_input
-        flat = 7 * 7 * 1280
-        shape = (224, 244)
-    else:
-        raise Exception('Encoder model {} not recognized'.format(arg.encoder))
+    if arg.input not in ['none', 'slerp']:
+        if arg.encoder == 'inceptionv3':
+            encoder = InceptionV3(weights='imagenet', include_top=False)
+            prep = keras.applications.inception_v3.preprocess_input
+            flat = 6 * 8 * 2048
+        elif arg.encoder == 'mobilenetv2':
+            encoder = MobileNetV2(weights='imagenet', include_top=False)
+            prep = keras.applications.mobilenetv2.preprocess_input
+            flat = 7 * 7 * 1280
+            shape = (224, 244)
+        else:
+            raise Exception('Encoder model {} not recognized'.format(arg.encoder))
 
-    frames_per_chunk = arg.chunk_length * SECONDS_PER_BAR * FPS
+    frames_per_chunk = chunk_length * SECONDS_PER_BAR * FPS
 
     has_video = True
 
     if arg.input == 'none':
-        ## Generate 6 bars of random music
+        ## Generate 32 bars of random music
         z = np.random.randn(6, latent_size)
         has_video = False
 
     elif arg.input == 'slerp':
-        ## Generate 6 bars of random music
+        ## Generate 6 bars of random music, interpolating betwene two points
         z0 = np.random.randn(latent_size) * 2
         z1 = np.random.randn(latent_size) * 2
 
@@ -220,7 +228,7 @@ def go(arg):
         print('Averaged z vectors', z.shape)
         print(z[:, :10].var(axis=1))
 
-        # Whiten (averaging will have decreasesed the variance, so we adjust the spread)
+        # Whiten (averaging will have decreased the variance, so we adjust the spread)
         z -= z.mean(axis=0, keepdims=True)
         z /= z.var(axis=0, keepdims=True)
 
@@ -243,7 +251,7 @@ def go(arg):
     #    style every 2 bars.
 
     ## Sample the music
-    clength = arg.chunk_length * 16
+    clength = chunk_length * 16
     note_sequences = decoder.decode(z=z, length=clength, temperature=arg.temp)
 
     print(len(note_sequences), ' note sequences produced')
@@ -254,7 +262,7 @@ def go(arg):
     #     mm.sequence_proto_to_midi_file(ns, '{}.{:03}.mid'.format(arg.name, i))
 
     # note_sequence = mm.concatenate_sequences(note_sequences, [0.75] * len(note_sequences))
-    note_sequence = mm.sequences_lib.concatenate_sequences(note_sequences, [arg.chunk_length * SECONDS_PER_BAR] * len(note_sequences))
+    note_sequence = mm.sequences_lib.concatenate_sequences(note_sequences, [chunk_length * SECONDS_PER_BAR] * len(note_sequences))
 
     print('total time', note_sequence.total_time)
 
@@ -306,10 +314,10 @@ if __name__ == "__main__":
                         help="Multiplier for the latent vectors. Set higher than 1 to create more extreme variation.",
                         default=1.0, type=float)
 
-    parser.add_argument("-c", "--chunk-length",
-                        dest="chunk_length",
-                        help="The length (in bars, lasting 2 seconds) of a chunk of frames for which the model generates a sequence of music.",
-                        default=2, type=int)
+    # parser.add_argument("-c", "--chunk-length",
+    #                     dest="chunk_length",
+    #                     help="The length (in bars, lasting 2 seconds) of a chunk of frames for which the model generates a sequence of music.",
+    #                     default=2, type=int)
 
     parser.add_argument("-n", "--name",
                         dest="name",
@@ -332,7 +340,7 @@ if __name__ == "__main__":
     parser.add_argument("--encoder-model",
                         dest="encoder",
                         help="Which model to use for feature extraction (inceptionv3, mobilenetv2)",
-                        default='inceptionv3', type=str)
+                        default='mobilenetv2', type=str)
 
     parser.add_argument("--decoder-model",
                         dest="decoder",
