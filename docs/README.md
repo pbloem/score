@@ -27,6 +27,10 @@ Linked Data standards. We will aim to use this as our archive for the audio part
 
 ### Updates
 
+#### 8 May 2019
+
+The NWO KIEM project has officially been concluded. You can read the [final report here](score_final_report.pdf), and a [second report with future recommendations here](score_report_future_recommendations.pdf). We currently have multiple student projects underway, to investigate various aspects of the SCORE! research question. After these have concluded, we will decide on any future directions for the project.
+
 #### 29 March 2019
 
 We will present some preliminary results from Score at the [Rewire instriumewntal shifts symposium](https://www.rewirefestival.nl/event/instrumental-shifts-symposium) today. The slides of our lightning talk (including links to videos) [can be found here](./score-rewire.pdf).
