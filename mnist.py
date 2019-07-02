@@ -99,8 +99,8 @@ def go(options):
 
     for epoch in range(options.epochs):
         for i, data in tqdm.tqdm(enumerate(trainloader, 0)):
-            if i > 5:
-                break
+            # if i > 5:
+            #     break
 
             # get the inputs
             inputs, labels = data
