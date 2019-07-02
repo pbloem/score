@@ -99,6 +99,8 @@ def go(options):
 
     for epoch in range(options.epochs):
         for i, data in tqdm.tqdm(enumerate(trainloader, 0)):
+            if i > 5:
+                break
 
             # get the inputs
             inputs, labels = data
@@ -155,7 +157,7 @@ def go(options):
 
             m = dist.Normal(out[:, :1, :, :], out[:, 1:, :, :])
             res = m.sample()
-            res.clamp(0, 1)
+            res = res.clamp(0, 1)
 
             for i in range(10):
                 ax = plt.subplot(4, 10, i + 1)
