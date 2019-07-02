@@ -65,10 +65,16 @@ def go(options):
 
     encoder = Sequential(
         Conv2d(1, a, (3, 3), padding=1), ReLU(),
+        Conv2d(a, a, (3, 3), padding=1), ReLU(),
+        Conv2d(a, a, (3, 3), padding=1), ReLU(),
         MaxPool2d((2, 2)),
         Conv2d(a, b, (3, 3), padding=1), ReLU(),
+        Conv2d(b, b, (3, 3), padding=1), ReLU(),
+        Conv2d(b, b, (3, 3), padding=1), ReLU(),
         MaxPool2d((2, 2)),
         Conv2d(b, c, (3, 3), padding=1), ReLU(),
+        Conv2d(c, c, (3, 3), padding=1), ReLU(),
+        Conv2d(c, c, (3, 3), padding=1), ReLU(),
         MaxPool2d((2, 2)),
         ptutil.Flatten(),
         Linear(3 * 3 * c, 2 * options.latent_size)
@@ -79,10 +85,16 @@ def go(options):
         Linear(options.latent_size, c * 3 * 3), ReLU(),
         ptutil.Reshape((c, 3, 3)),
         Upsample(scale_factor=2, mode=upmode),
+        ConvTranspose2d(c, c, (3, 3), padding=1), ReLU(),
+        ConvTranspose2d(c, c, (3, 3), padding=1), ReLU(),
         ConvTranspose2d(c, b, (3, 3), padding=1), ReLU(),
         Upsample(scale_factor=2, mode=upmode),
-        ConvTranspose2d(b, a, (3, 3), padding=0), ReLU(),
+        ConvTranspose2d(b, b, (3, 3), padding=1), ReLU(),
+        ConvTranspose2d(b, b, (3, 3), padding=1), ReLU(),
+        ConvTranspose2d(b, a, (3, 3), padding=0), ReLU(), # note the padding
         Upsample(scale_factor=2, mode=upmode),
+        ConvTranspose2d(a, a, (3, 3), padding=1), ReLU(),
+        ConvTranspose2d(a, a, (3, 3), padding=1), ReLU(),
         ConvTranspose2d(a, 2, (3, 3), padding=1), Sigmoid()
     )
 
