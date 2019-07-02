@@ -22,6 +22,10 @@ from tensorboardX import SummaryWriter
 import torchvision
 from torchvision import transforms
 
+import matplotlib as mpl
+mpl.use('Agg')
+import matplotlib.pyplot as plt
+
 def go(options):
 
 
@@ -49,43 +53,35 @@ def go(options):
     test_batches = [inputs for inputs, _ in testloader]
     test_images = torch.cat(test_batches, dim=0).numpy()
 
+    test_batch = test_batches[0]
+    assert test_batch.size(0) > 10
+
     ## Build model
 
     # - channel sizes
     a, b, c = 8, 32, 128
 
     encoder = Sequential(
-        Conv2d(1, a, (5, 5), padding=2), ReLU(),
-        Conv2d(a, a, (5, 5), padding=2), ReLU(),
-        Conv2d(a, a, (5, 5), padding=2), ReLU(),
+        Conv2d(1, a, (3, 3), padding=1), ReLU(),
         MaxPool2d((2, 2)),
-        Conv2d(a, b, (5, 5), padding=2), ReLU(),
-        Conv2d(b, b, (5, 5), padding=2), ReLU(),
-        Conv2d(b, b, (5, 5), padding=2), ReLU(),
+        Conv2d(a, b, (3, 3), padding=1), ReLU(),
         MaxPool2d((2, 2)),
-        Conv2d(b, c, (5, 5), padding=2), ReLU(),
-        Conv2d(c, c, (5, 5), padding=2), ReLU(),
-        Conv2d(c, c, (5, 5), padding=2), ReLU(),
+        Conv2d(b, c, (3, 3), padding=1), ReLU(),
         MaxPool2d((2, 2)),
         ptutil.Flatten(),
-        Linear(1152, 2 * options.latent_size)
+        Linear(3 * 3 * c, 2 * options.latent_size)
     )
 
     upmode = 'bilinear'
     decoder = Sequential(
-        Linear(options.latent_size, 4 * 4 * c), ReLU(),
-        ptutil.Reshape((c, 4, 4)),
-        ConvTranspose2d(c, c, (5, 5), padding=2), ReLU(),
-        ConvTranspose2d(c, c, (5, 5), padding=2), ReLU(),
-        ConvTranspose2d(c, b, (5, 5), padding=2), ReLU(),
-        Upsample(scale_factor=3, mode=upmode),
-        ConvTranspose2d(b, b, (5, 5), padding=2), ReLU(),
-        ConvTranspose2d(b, b, (5, 5), padding=2), ReLU(),
-        ConvTranspose2d(b, a, (5, 5), padding=2), ReLU(),
+        Linear(options.latent_size, c * 3 * 3), ReLU(),
+        ptutil.Reshape((c, 3, 3)),
         Upsample(scale_factor=2, mode=upmode),
-        ConvTranspose2d(a, a, (5, 5), padding=2), ReLU(),
-        ConvTranspose2d(a, a, (5, 5), padding=2), ReLU(),
-        ConvTranspose2d(a, 2, (5, 5), padding=0), Sigmoid()
+        ConvTranspose2d(c, b, (3, 3), padding=1), ReLU(),
+        Upsample(scale_factor=2, mode=upmode),
+        ConvTranspose2d(b, a, (3, 3), padding=0), ReLU(),
+        Upsample(scale_factor=2, mode=upmode),
+        ConvTranspose2d(a, 2, (3, 3), padding=1), Sigmoid()
     )
 
     if torch.cuda.is_available():
@@ -101,6 +97,8 @@ def go(options):
 
     for epoch in range(options.epochs):
         for i, data in tqdm.tqdm(enumerate(trainloader, 0)):
+            if i > 25:
+                break
 
             # get the inputs
             inputs, labels = data
@@ -143,31 +141,42 @@ def go(options):
             tbw.add_scalar('score/rec', float(rec_loss.mean()), instances_seen)
             tbw.add_scalar('score/loss', float(loss), instances_seen)
 
-        ## Plot the latent space
+        ## Plot some reconstructions
         if epoch % options.out_every == 0:
-            print('Plotting latent space.')
+            print('({}) Plotting reconstructions.'.format(epoch))
 
-            out_batches = [None] * len(test_batches)
-            for i, batch in enumerate(test_batches):
-                if torch.cuda.is_available():
-                    batch = batch.cuda()
-                batch = Variable(batch)
-                out_batches[i] = encoder(batch).data[:, :options.latent_size]
+            plt.figure(figsize=(10, 4))
 
-            latents = torch.cat(out_batches, dim=0)
-            print(latents.size(0), test_images.shape[0])
+            zc = encoder(test_batch)
+            zmean, zlsig = zc[:, :options.latent_size], zc[:, options.latent_size:]
+            zsample = ptutil.sample(zmean, zlsig)
 
-            print('-- Computed latent vectors.')
+            out = decoder(zsample)
 
-            rng = float(torch.max(latents[:, 0]) - torch.min(latents[:, 0]))
+            m = dist.Normal(out[:, :1, :, :], out[:, 1:, :, :])
+            res = m.sample()
+            res.clamp(0, 1)
 
-            print('-- L', latents[:10,:])
-            print('-- range', rng)
+            for i in range(10):
+                ax = plt.subplot(4, 10, i + 1)
+                ax.imshow(test_batch[i, :, :, :].squeeze(), cmap='gray')
+                ptutil.clean(ax)
 
-            n_test = latents.shape[0]
-            ptutil.plot(latents.cpu().numpy(), test_images, size=rng/math.sqrt(n_test), filename='mnist.{:04}.pdf'.format(epoch), invert=True)
-            print('-- finished plot')
+                ax = plt.subplot(4, 10, i + 11)
+                ax.imshow(res[i, :, :, :].squeeze(), cmap='gray')
+                ptutil.clean(ax)
 
+                ax = plt.subplot(4, 10, i + 21)
+                ax.imshow(out[i, :1, :, :].data.squeeze(), cmap='gray')
+                ptutil.clean(ax)
+
+                ax = plt.subplot(4, 10, i + 31)
+                ax.imshow(out[i, 1:, :, :].data.squeeze(), cmap='gray')
+                ptutil.clean(ax)
+
+
+            # plt.tight_layout()
+            plt.savefig('rec.{:03}.pdf'.format(epoch))
 
 if __name__ == "__main__":
 

@@ -78,7 +78,10 @@ def plot(latents, images, size=0.00001, filename='latent_space.pdf', invert=Fals
 
         im = images[i, :]
 
-        ax.imshow(im if c > 1 else im.squeeze(0), extent=(x, x + size, y, y + size*aspect), cmap='gray_r' if invert else 'gray')
+        # print(im.squeeze().shape)
+        # sys.exit()
+
+        ax.imshow(im.squeeze(), extent=(x, x + size, y, y + size*aspect), cmap='gray_r' if invert else 'gray')
 
     # ax.scatter(latents[:, 0], latents[:, 1], alpha=0.5, linewidth=0)
 
