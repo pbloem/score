@@ -159,19 +159,19 @@ def go(options):
 
             for i in range(10):
                 ax = plt.subplot(4, 10, i + 1)
-                ax.imshow(test_batch[i, :, :, :].squeeze(), cmap='gray')
+                ax.imshow(test_batch[i, :, :, :].cpu().squeeze(), cmap='gray')
                 ptutil.clean(ax)
 
                 ax = plt.subplot(4, 10, i + 11)
-                ax.imshow(res[i, :, :, :].squeeze(), cmap='gray')
+                ax.imshow(res[i, :, :, :].cpu().squeeze(), cmap='gray')
                 ptutil.clean(ax)
 
                 ax = plt.subplot(4, 10, i + 21)
-                ax.imshow(out[i, :1, :, :].data.squeeze(), cmap='gray')
+                ax.imshow(out[i, :1, :, :].data.cpu().squeeze(), cmap='gray')
                 ptutil.clean(ax)
 
                 ax = plt.subplot(4, 10, i + 31)
-                ax.imshow(out[i, 1:, :, :].data.squeeze(), cmap='gray')
+                ax.imshow(out[i, 1:, :, :].data.cpu().squeeze(), cmap='gray')
                 ptutil.clean(ax)
 
 
