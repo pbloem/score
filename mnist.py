@@ -10,9 +10,10 @@ from torch.optim import Adam
 from torch.nn.functional import binary_cross_entropy
 from torch.nn import Conv2d, ConvTranspose2d, MaxPool2d, Linear, Sequential, ReLU, Sigmoid, Upsample
 from torch.autograd import Variable
+import torch.distributions as dist
 
 import numpy as np
-import util, random, tqdm, math
+import ptutil, random, tqdm, math
 
 from argparse import ArgumentParser
 
@@ -66,14 +67,14 @@ def go(options):
         Conv2d(c, c, (5, 5), padding=2), ReLU(),
         Conv2d(c, c, (5, 5), padding=2), ReLU(),
         MaxPool2d((2, 2)),
-        util.Flatten(),
+        ptutil.Flatten(),
         Linear(1152, 2 * options.latent_size)
     )
 
     upmode = 'bilinear'
     decoder = Sequential(
         Linear(options.latent_size, 4 * 4 * c), ReLU(),
-        util.Reshape((c, 4, 4)),
+        ptutil.Reshape((c, 4, 4)),
         ConvTranspose2d(c, c, (5, 5), padding=2), ReLU(),
         ConvTranspose2d(c, c, (5, 5), padding=2), ReLU(),
         ConvTranspose2d(c, b, (5, 5), padding=2), ReLU(),
@@ -84,7 +85,7 @@ def go(options):
         Upsample(scale_factor=2, mode=upmode),
         ConvTranspose2d(a, a, (5, 5), padding=2), ReLU(),
         ConvTranspose2d(a, a, (5, 5), padding=2), ReLU(),
-        ConvTranspose2d(a, 1, (5, 5), padding=0), Sigmoid()
+        ConvTranspose2d(a, 2, (5, 5), padding=0), Sigmoid()
     )
 
     if torch.cuda.is_available():
@@ -119,13 +120,15 @@ def go(options):
             zcomb = encoder(inputs)
             zmean, zlsig = zcomb[:, :options.latent_size], zcomb[:, options.latent_size:]
 
-            kl_loss = util.kl_loss(zmean, zlsig)
-
-            zsample = util.sample(zmean, zlsig)
+            kl_loss = ptutil.kl_loss(zmean, zlsig)
+            zsample = ptutil.sample(zmean, zlsig)
 
             out = decoder(zsample)
 
-            rec_loss = binary_cross_entropy(out, inputs, reduce=False).view(b, -1).sum(dim=1)
+            m = dist.Normal(out[:, :1, :, :], out[:, 1:, :, :])
+            rec_loss = - m.log_prob(inputs).view(b, -1).sum(dim=1)
+
+            # rec_loss = binary_cross_entropy(out, inputs, reduce=False).view(b, -1).sum(dim=1)
 
             # Backward pass
 
@@ -162,7 +165,7 @@ def go(options):
             print('-- range', rng)
 
             n_test = latents.shape[0]
-            util.plot(latents.cpu().numpy(), test_images, size=rng/math.sqrt(n_test), filename='mnist.{:04}.pdf'.format(epoch), invert=True)
+            ptutil.plot(latents.cpu().numpy(), test_images, size=rng/math.sqrt(n_test), filename='mnist.{:04}.pdf'.format(epoch), invert=True)
             print('-- finished plot')
 
 
