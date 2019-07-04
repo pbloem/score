@@ -8,7 +8,7 @@ import torch
 
 from torch.optim import Adam
 from torch.nn.functional import binary_cross_entropy
-from torch.nn import Conv2d, ConvTranspose2d, MaxPool2d, Linear, Sequential, ReLU, Sigmoid, Upsample
+from torch.nn import Conv2d, ConvTranspose2d, MaxPool2d, Linear, Sequential, ReLU, Sigmoid, Softplus, Upsample
 from torch.autograd import Variable
 import torch.distributions as dist
 
@@ -25,6 +25,8 @@ from torchvision import transforms
 import matplotlib as mpl
 mpl.use('Agg')
 import matplotlib.pyplot as plt
+
+EPS = 0.00001
 
 def go(options):
 
@@ -60,12 +62,9 @@ def go(options):
 
     ## Build model
 
-    if options.loss == 'gaussian':
-        outc = 2
-    elif options.loss == 'xent':
-        outc = 1
-    else:
-        raise Exception('loss {} not recognized'.format(options.loss))
+
+    outc = 1 if options.loss == 'xent' else 2
+    act = Softplus() if options.loss == 'beta' else Sigmoid()
 
     # - channel sizes
     a, b, c = 8, 32, 128
@@ -102,7 +101,7 @@ def go(options):
         Upsample(scale_factor=2, mode=upmode),
         #ConvTranspose2d(a, a, (3, 3), padding=1), ReLU(),
         #ConvTranspose2d(a, a, (3, 3), padding=1), ReLU(),
-        ConvTranspose2d(a, outc, (3, 3), padding=1), Sigmoid()
+        ConvTranspose2d(a, outc, (3, 3), padding=1), act
     )
 
     if torch.cuda.is_available():
@@ -147,6 +146,9 @@ def go(options):
             if options.loss == 'gaussian':
                 m = dist.Normal(out[:, :1, :, :], out[:, 1:, :, :] + 0.0001)
                 rec_loss = - m.log_prob(inputs).view(b, -1).sum(dim=1)
+            elif options.loss == 'beta':
+                m = dist.Beta(out[:, :1, :, :] + 2, out[:, 1:, :, :] + 2)
+                rec_loss = - m.log_prob(inputs * (1 - 2 * EPS) + EPS).view(b, -1).sum(dim=1)
             elif options.loss == 'xent':
                 rec_loss = binary_cross_entropy(out, inputs, reduce=False).view(b, -1).sum(dim=1)
             else:
@@ -181,12 +183,17 @@ def go(options):
                 res = m.sample()
                 res = res.clamp(0, 1)
 
+            if options.loss == 'beta':
+                m = dist.Beta(out[:, :1, :, :] + 2, out[:, 1:, :, :] + 2)
+                res = m.sample()
+                res = res.clamp(0, 1)
+
             for i in range(10):
                 ax = plt.subplot(4, 10, i + 1)
                 ax.imshow(test_batch[i, :, :, :].cpu().squeeze(), cmap='gray')
                 ptutil.clean(ax)
 
-                if options.loss == 'gaussian':
+                if options.loss != 'xent':
                     ax = plt.subplot(4, 10, i + 11)
                     ax.imshow(res[i, :, :, :].cpu().squeeze(), cmap='gray')
                     ptutil.clean(ax)
@@ -195,11 +202,10 @@ def go(options):
                 ax.imshow(out[i, :1, :, :].data.cpu().squeeze(), cmap='gray')
                 ptutil.clean(ax)
 
-                if options.loss == 'gaussian':
+                if options.loss != 'xent':
                     ax = plt.subplot(4, 10, i + 31)
                     ax.imshow(out[i, 1:, :, :].data.cpu().squeeze(), cmap='gray')
                     ptutil.clean(ax)
-
 
             # plt.tight_layout()
             plt.savefig('rec.{:03}.pdf'.format(epoch))
