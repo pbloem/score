@@ -176,26 +176,29 @@ def go(options):
 
             out = decoder(zsample)
 
-            m = dist.Normal(out[:, :1, :, :], out[:, 1:, :, :])
-            res = m.sample()
-            res = res.clamp(0, 1)
+            if options.loss == 'gaussian':
+                m = dist.Normal(out[:, :1, :, :], out[:, 1:, :, :])
+                res = m.sample()
+                res = res.clamp(0, 1)
 
             for i in range(10):
                 ax = plt.subplot(4, 10, i + 1)
                 ax.imshow(test_batch[i, :, :, :].cpu().squeeze(), cmap='gray')
                 ptutil.clean(ax)
 
-                ax = plt.subplot(4, 10, i + 11)
-                ax.imshow(res[i, :, :, :].cpu().squeeze(), cmap='gray')
-                ptutil.clean(ax)
+                if options.loss == 'gaussian':
+                    ax = plt.subplot(4, 10, i + 11)
+                    ax.imshow(res[i, :, :, :].cpu().squeeze(), cmap='gray')
+                    ptutil.clean(ax)
 
                 ax = plt.subplot(4, 10, i + 21)
                 ax.imshow(out[i, :1, :, :].data.cpu().squeeze(), cmap='gray')
                 ptutil.clean(ax)
 
-                ax = plt.subplot(4, 10, i + 31)
-                ax.imshow(out[i, 1:, :, :].data.cpu().squeeze(), cmap='gray')
-                ptutil.clean(ax)
+                if options.loss == 'gaussian':
+                    ax = plt.subplot(4, 10, i + 31)
+                    ax.imshow(out[i, 1:, :, :].data.cpu().squeeze(), cmap='gray')
+                    ptutil.clean(ax)
 
 
             # plt.tight_layout()
