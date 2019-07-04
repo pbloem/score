@@ -60,6 +60,13 @@ def go(options):
 
     ## Build model
 
+    if options.loss == 'gaussian':
+        outc = 2
+    elif options.loss == 'xent':
+        outc = 1
+    else:
+        raise Exception('loss {} not recognized'.format(options.loss))
+
     # - channel sizes
     a, b, c = 8, 32, 128
 
@@ -95,7 +102,7 @@ def go(options):
         Upsample(scale_factor=2, mode=upmode),
         #ConvTranspose2d(a, a, (3, 3), padding=1), ReLU(),
         #ConvTranspose2d(a, a, (3, 3), padding=1), ReLU(),
-        ConvTranspose2d(a, 2, (3, 3), padding=1), Sigmoid()
+        ConvTranspose2d(a, outc, (3, 3), padding=1), Sigmoid()
     )
 
     if torch.cuda.is_available():
@@ -137,14 +144,16 @@ def go(options):
 
             out = decoder(zsample)
 
-            m = dist.Normal(out[:, :1, :, :], out[:, 1:, :, :])
-            rec_loss = - m.log_prob(inputs).view(b, -1).sum(dim=1)
-
-            # rec_loss = binary_cross_entropy(out, inputs, reduce=False).view(b, -1).sum(dim=1)
+            if options.loss == 'gaussian':
+                m = dist.Normal(out[:, :1, :, :], out[:, 1:, :, :])
+                rec_loss = - m.log_prob(inputs).view(b, -1).sum(dim=1)
+            elif options.loss == 'xent':
+                rec_loss = binary_cross_entropy(out, inputs, reduce=False).view(b, -1).sum(dim=1)
+            else:
+                raise Exception('loss {} not recognized'.format(options.loss))
 
             # Backward pass
-
-            loss = (rec_loss + kl_loss).mean()
+            loss = (rec_loss + options.beta * kl_loss).mean()
             loss.backward()
 
             optimizer.step()
@@ -221,6 +230,16 @@ if __name__ == "__main__":
                         dest="batch_size",
                         help="Batch size",
                         default=32, type=int)
+
+    parser.add_argument("--loss",
+                        dest="loss",
+                        help="Type of loss (gaussian or xent)",
+                        default='gaussian', type=str)
+
+    parser.add_argument("-B", "--beta",
+                        dest="beta",
+                        help="Beta parameter for the VAE",
+                        default=1.0, type=float)
 
     parser.add_argument("-T", "--tb-directory",
                         dest="tb_dir",
