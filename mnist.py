@@ -145,7 +145,7 @@ def go(options):
             out = decoder(zsample)
 
             if options.loss == 'gaussian':
-                m = dist.Normal(out[:, :1, :, :], out[:, 1:, :, :])
+                m = dist.Normal(out[:, :1, :, :], out[:, 1:, :, :] + 0.0001)
                 rec_loss = - m.log_prob(inputs).view(b, -1).sum(dim=1)
             elif options.loss == 'xent':
                 rec_loss = binary_cross_entropy(out, inputs, reduce=False).view(b, -1).sum(dim=1)
@@ -177,7 +177,7 @@ def go(options):
             out = decoder(zsample)
 
             if options.loss == 'gaussian':
-                m = dist.Normal(out[:, :1, :, :], out[:, 1:, :, :])
+                m = dist.Normal(out[:, :1, :, :], out[:, 1:, :, :] + 0.0001)
                 res = m.sample()
                 res = res.clamp(0, 1)
 
